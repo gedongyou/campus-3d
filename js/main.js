@@ -2043,7 +2043,7 @@ function makeLabels() {
   BUILDINGS.forEach(b => {
     const el = document.createElement('div');
     el.className = 'blabel';
-    el.textContent = b.name.replace(/^G?\d+\s*/, '');
+    el.textContent = b.name;   // 名字里已经不带楼号了
     labelLayer.appendChild(el);
     labelEls.set(b.id, el);
   });
