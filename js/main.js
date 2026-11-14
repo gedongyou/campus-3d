@@ -2119,18 +2119,19 @@ function renderViewpoints() {
   list.forEach(v => {
     const b = document.createElement('button');
     b.className = 'vp' + (v.id === 'overview' ? ' active' : '');
+    b.dataset.vp = v.id;
     b.textContent = v.name;
     b.onclick = () => {
-      [...vpBar.children].forEach(c => c.classList.remove('active'));
-      b.classList.add('active');
-      flyTo(v.pos, v.target, 1300);
       stopTour();
+      markVp(v.id);
+      flyTo(v.pos, v.target, 1300);
     };
     vpBar.appendChild(b);
   });
 }
 
 function selectBuilding(b) {
+  stopTour();
   selected = b;
   buildingNodes.forEach(({ building, mat }) => {
     mat.emissiveIntensity = building === b ? 0.5 : (duskMode ? 1.0 : 0);
@@ -2186,24 +2187,40 @@ function deselect() {
 document.getElementById('btn-close').onclick = deselect;
 
 /* ---------- 自动巡游 ---------- */
+// 巡游只用底部那排视角按钮对应的机位（竖屏专用机位 overview-tall 不参与），
+// 否则按钮高亮会和实际飞行到的机位错位。
 let tourTimer = null;
 let tourIdx = 0;
 const tourBtn = document.getElementById('btn-tour');
+const tourList = () => CAMPUS.viewpoints.filter(v => v.id !== 'overview-tall');
+
+// 高亮按 id 找按钮，不靠下标——按钮顺序将来变了也不会错位
+function markVp(id) {
+  [...vpBar.children].forEach(c => c.classList.toggle('active', c.dataset.vp === id));
+}
 
 function startTour() {
-  tourIdx = 0;
+  // 从"离当前机位最近的那一站"的下一站开始，否则第一段会飞回你正站着的地方，白等 6 秒
+  const list = tourList();
+  const p = camera.position;
+  let nearest = 0, best = Infinity;
+  list.forEach((v, i) => {
+    const d = (v.pos[0] - p.x) ** 2 + (v.pos[1] - p.y) ** 2 + (v.pos[2] - p.z) ** 2;
+    if (d < best) { best = d; nearest = i; }
+  });
+  tourIdx = nearest + 1;
   tourBtn.classList.add('on');
   tourBtn.textContent = '停止巡游';
   stepTour();
-  tourTimer = setInterval(stepTour, 6000);
+  // 稍长于飞行时长，避免上一次还没停稳就起飞，画面像在抽帧
+  tourTimer = setInterval(stepTour, 6200);
 }
 function stepTour() {
-  const list = CAMPUS.viewpoints;
+  const list = tourList();
   const v = list[tourIdx % list.length];
   tourIdx++;
-  [...vpBar.children].forEach(c => c.classList.remove('active'));
-  vpBar.children[tourIdx - 1]?.classList.add('active');
-  flyTo(v.pos, v.target, 4800);
+  markVp(v.id);
+  flyTo(v.pos, v.target, 5000);
 }
 function stopTour() {
   if (tourTimer) clearInterval(tourTimer);
@@ -2212,6 +2229,13 @@ function stopTour() {
   tourBtn.textContent = '自动巡游';
 }
 tourBtn.onclick = () => (tourTimer ? stopTour() : startTour());
+
+// 任何手动操作都中止巡游，不然飞行会把镜头抢回去、用户拖不动
+function interruptTour() {
+  if (tourTimer) stopTour();
+}
+canvas.addEventListener('pointerdown', interruptTour);
+canvas.addEventListener('wheel', interruptTour, { passive: true });
 
 /* ---------- 黄昏 ---------- */
 const lightBtn = document.getElementById('btn-light');
