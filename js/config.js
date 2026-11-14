@@ -17,7 +17,7 @@ export const CAMPUS = {
     { id: 'gate',     name: '学校正门', pos: [-152, 30, 64], target: [-84, 5, 64] },
     { id: 'west',     name: '实训区',   pos: [-215, 150, 265], target: [-270, 0, 20] },
     { id: 'teach',    name: '教学区',   pos: [95, 120, 215], target: [70, 0, -30] },
-    { id: 'lake',     name: '匠心湖',   pos: [42, 40, 145], target: [44, 2, 42] },
+    { id: 'lake',     name: '匠心湖',   pos: [24, 92, 168], target: [52, 0, 34] },
     { id: 'sport',    name: '运动场',   pos: [272, 95, 250], target: [272, 0, 14] },
     { id: 'dorm',     name: '生活区',   pos: [318, 105, 95], target: [280, 24, -60] },
   ],
