@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>江苏省张家港中等专业学校 · 虚拟校园</title>
+<link rel="stylesheet" href="./css/style.css" />
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+
+<div id="app">
+  <canvas id="scene"></canvas>
+
+  <!-- 楼栋文字标签层 -->
+  <div id="labels"></div>
+
+  <!-- 顶部栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="crest">张</div>
+      <div class="brand-text">
+        <h1>江苏省张家港中等专业学校</h1>
+        <p>虚拟校园 · 三维导览　<span class="motto">厚德精技　励学敦行</span></p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button id="btn-tour" class="btn" title="按顺序自动巡游各区域">自动巡游</button>
+      <button id="btn-light" class="btn" title="切换日景 / 黄昏">黄昏</button>
+      <button id="btn-reset" class="btn" title="回到总览视角">重置视角</button>
+    </div>
+  </header>
+
+  <!-- 左侧：区域列表 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="panel-head">
+      <span>校园分区</span>
+      <button id="btn-sidebar" class="collapse" title="收起/展开">—</button>
+    </div>
+    <div class="panel-body" id="area-list"></div>
+    <div class="legend">
+      <span><i style="background:#b98b5e"></i>教学区</span>
+      <span><i style="background:#5f8ea8"></i>实训区</span>
+      <span><i style="background:#8aa06b"></i>生活区</span>
+      <span><i style="background:#c4a35a"></i>中心区</span>
+    </div>
+  </aside>
+
+  <!-- 右侧：详情 -->
+  <aside class="detail" id="detail" aria-hidden="true">
+    <button class="close" id="btn-close" title="关闭">×</button>
+    <div class="detail-tag" id="d-tag"></div>
+    <h2 id="d-name"></h2>
+    <p class="d-sub" id="d-sub"></p>
+    <p class="d-desc" id="d-desc"></p>
+    <div class="d-block" id="d-majors-wrap">
+      <h3>开设专业</h3>
+      <div class="chips" id="d-majors"></div>
+    </div>
+    <div class="d-block" id="d-spots-wrap">
+      <h3>馆内点位</h3>
+      <ul class="spots" id="d-spots"></ul>
+    </div>
+    <div class="d-actions">
+      <button class="btn primary" id="btn-fly">飞到这里</button>
+      <button class="btn" id="btn-near">环视周边</button>
+    </div>
+  </aside>
+
+  <!-- 底部：视角切换 -->
+  <nav class="viewpoints" id="viewpoints"></nav>
+
+  <!-- 操作提示 -->
+  <div class="hint">
+    <span>拖动旋转</span><span>滚轮缩放</span><span>右键平移</span><span>点击建筑查看详情</span>
+  </div>
+
+  <!-- 加载 -->
+  <div class="loader" id="loader">
+    <div class="loader-inner">
+      <div class="ring"></div>
+      <p>正在构建虚拟校园…</p>
+    </div>
+  </div>
+
+  <!-- 说明 -->
+  <div class="disclaimer" id="disclaimer">
+    本模型依据学校总平面图<b>按图复原</b>：楼栋位置、平面轮廓、层数与高度取自图纸标注，外立面与大尺度配景为示意处理，仅供观览与导览演示。
+    <button id="btn-disclaimer" class="btn">知道了</button>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
