@@ -198,6 +198,27 @@ body{
 .blabel.far{opacity:.34}
 .blabel.sel{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:600}
 
+/* 路名：压在路面上，不加底色块，免得像一排按钮 */
+.rlabel{
+  position:absolute;left:0;top:0;
+  font-size:10.5px;color:#2f4756;
+  letter-spacing:2.6px;text-indent:2.6px;
+  white-space:nowrap;
+  padding:1px 6px;border-radius:4px;
+  background:rgba(255,255,255,.72);
+  text-shadow:0 1px 0 rgba(255,255,255,.9);
+  transition:opacity .2s;
+  will-change:transform;
+}
+.rlabel.main{color:#1d3341;letter-spacing:3.2px;text-indent:3.2px;background:rgba(255,255,255,.8);font-weight:600}
+/* 纵向道路：文字竖排，每个字正立（中文地图的写法），不是把整行旋转 90° */
+.rlabel.vert{
+  writing-mode:vertical-rl;
+  text-orientation:upright;
+  letter-spacing:4px;text-indent:0;
+  padding:6px 1px;
+}
+
 /* ---------- 加载 ---------- */
 .loader{
   position:absolute;inset:0;z-index:100;display:grid;place-items:center;

@@ -2047,6 +2047,54 @@ function makeLabels() {
     labelLayer.appendChild(el);
     labelEls.set(b.id, el);
   });
+  makeRoadLabels();
+}
+
+/* ---------- 路名标签 ---------- */
+// 名称来自用户提供的校园示意图（匠远路 / 匠诚路 / 匠行路 / 匠心路 / 匠德路 为横向，
+// 匠能大道 / 匠运大道 / 领航大道 / 团结大道 为纵向）。没有名字的连接路不标。
+const roadEls = [];
+
+function makeRoadLabels() {
+  ROADS.forEach(r => {
+    if (!r.name) return;
+    const horizontal = Math.abs(r.z2 - r.z1) < 0.01;
+    const len = horizontal ? Math.abs(r.x2 - r.x1) : Math.abs(r.z2 - r.z1);
+    if (len < 60) return;                 // 太短的路段标上去会挤成一团
+    const el = document.createElement('div');
+    el.className = 'rlabel' + (r.main ? ' main' : '');
+    el.textContent = r.name;
+    labelLayer.appendChild(el);
+    roadEls.push({
+      el,
+      x: (r.x1 + r.x2) / 2,
+      z: (r.z1 + r.z2) / 2,
+      len,
+      vertical: !horizontal,
+    });
+  });
+}
+
+function updateRoadLabels() {
+  const scale = innerWidth < 820 ? 0.72 : 1;
+  roadEls.forEach(o => {
+    tmpV.set(o.x, 0.4, o.z);
+    const dist = camera.position.distanceTo(tmpV);
+    tmpV.project(camera);
+    // 路名比楼名淡：太远就收掉，免得俯视远景糊成一片
+    if (tmpV.z > 1 || dist > 900) { o.el.style.display = 'none'; return; }
+    // 镜头压得很低时水平路面会变成一条线，字也压扁，这时收掉
+    if (dist > 40 && camera.position.y < 22) { o.el.style.display = 'none'; return; }
+    o.el.style.display = '';
+    const x = (tmpV.x * 0.5 + 0.5) * innerWidth;
+    const y = (-tmpV.y * 0.5 + 0.5) * innerHeight;
+    // 纵向道路用竖排（writing-mode），不是把整行转 90°——那样字是躺着的
+    o.el.classList.toggle('vert', o.vertical);
+    o.el.style.transform = `translate(-50%,-50%) translate3d(${x}px,${y}px,0)`;
+    // 衰减要缓：俯视总览时镜头离地 500~600m，按老公式只剩 0.29，等于看不见
+    o.el.style.opacity = Math.max(0.62, 0.96 - dist / 2600);
+    o.el.style.fontSize = `${10.5 * scale}px`;
+  });
 }
 
 function updateLabels() {
@@ -2067,6 +2115,7 @@ function updateLabels() {
     el.classList.toggle('sel', selected && selected.id === b.id);
     el.style.fontSize = `${11 * scale}px`;
   });
+  updateRoadLabels();
 }
 
 /* =========================================================
