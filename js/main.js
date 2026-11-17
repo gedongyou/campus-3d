@@ -2336,9 +2336,57 @@ document.getElementById('btn-disclaimer').onclick = () => {
   document.getElementById('disclaimer').classList.add('hide');
 };
 
+/* ---------- 操作说明 ---------- */
+const helpEl = document.getElementById('help');
+const hintEl = document.getElementById('hint');
+
+function openHelp() {
+  helpEl.hidden = false;
+  hintEl.classList.add('hide');
+  interruptTour();
+  // 面板是模态的：打开时把焦点移进来，键盘用户不用再 Tab 半天
+  document.getElementById('btn-help-close').focus();
+}
+function closeHelp() {
+  helpEl.hidden = true;
+  hintEl.classList.remove('hide');
+}
+function toggleHelp() { helpEl.hidden ? openHelp() : closeHelp(); }
+
+document.getElementById('btn-help').onclick = openHelp;
+document.getElementById('hint-help').onclick = openHelp;
+document.getElementById('btn-help-close').onclick = closeHelp;
+document.getElementById('btn-help-ok').onclick = closeHelp;
+// 点面板外的灰色遮罩也关掉，但点卡片里面不关
+helpEl.addEventListener('pointerdown', (e) => { if (e.target === helpEl) closeHelp(); });
+
 addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') deselect();
-  if (e.key === '1' && CAMPUS.viewpoints[0]) flyTo(CAMPUS.viewpoints[0].pos, CAMPUS.viewpoints[0].target);
+  // 在输入框里按快捷键不该触发这些（虽然现在没有输入框，留着以后加搜索用）
+  if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+
+  if (k === 'escape') {
+    if (!helpEl.hidden) { closeHelp(); return; }
+    deselect();
+    stopTour();
+    return;
+  }
+  // 打开说明时，其它快捷键一律不响应，免得边看说明边把镜头飞走
+  if (!helpEl.hidden && k !== 'h') return;
+
+  if (k === 'h') { toggleHelp(); return; }
+  if (k === 't') { tourTimer ? stopTour() : startTour(); return; }
+  if (k === 'd') { applyDusk(!duskMode); return; }
+  if (k === 'r') { document.getElementById('btn-reset').click(); return; }
+
+  // 1–7 对应底部七个视角
+  if (/^[1-7]$/.test(k)) {
+    const list = CAMPUS.viewpoints.filter(v => v.id !== 'overview-tall');
+    const v = list[Number(k) - 1];
+    if (!v) return;
+    stopTour(); markVp(v.id);
+    flyTo(v.pos, v.target, 1300);
+  }
 });
 
 addEventListener('resize', () => {

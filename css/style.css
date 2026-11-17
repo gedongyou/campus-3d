@@ -175,11 +175,78 @@ body{
 /* ---------- 提示 ---------- */
 .hint{
   position:absolute;left:50%;bottom:78px;transform:translateX(-50%);
-  z-index:10;display:flex;gap:14px;
+  z-index:10;display:flex;align-items:center;gap:14px;
   font-size:10.5px;color:rgba(29,37,48,.5);letter-spacing:.6px;
   pointer-events:none;white-space:nowrap;
 }
 .hint span::before{content:"· ";opacity:.6}
+.hint.hide{opacity:0;transition:opacity .3s}
+#hint-help{
+  pointer-events:auto;font-family:inherit;font-size:10.5px;letter-spacing:.4px;
+  color:var(--brand);background:rgba(255,255,255,.86);
+  border:1px solid rgba(30,75,110,.18);border-radius:7px;
+  padding:3px 9px;cursor:pointer;transition:.18s ease;
+}
+#hint-help:hover{background:#fff;border-color:var(--brand-2)}
+
+/* ---------- 操作说明面板 ---------- */
+.help{
+  position:absolute;inset:0;z-index:60;
+  display:flex;align-items:center;justify-content:center;
+  padding:28px 20px;
+  background:rgba(18,28,38,.5);
+  /* 这里原来有一句 animation:helpIn .22s 做淡入。在没有 GPU 的环境里
+     （评测机、老旧一体机、远程桌面），帧率只有个位数，0.22 秒的
+     opacity 动画会被拖成好几秒，面板一直停在半透明的中间态，
+     看上去像坏了。弹窗不值得为这 0.22 秒冒险，直接瞬开。 */
+}
+.help[hidden]{display:none}
+.help-card{
+  width:min(880px,100%);max-height:100%;
+  display:flex;flex-direction:column;
+  background:#fff;border-radius:16px;box-shadow:0 24px 70px rgba(12,25,40,.34);
+  overflow:hidden;
+}
+.help-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 26px 15px;border-bottom:1px solid var(--line);
+}
+.help-head h2{font-size:17px;font-weight:600;letter-spacing:.6px;color:var(--brand)}
+.help-x{
+  font-family:inherit;font-size:20px;line-height:1;color:var(--ink-2);
+  background:none;border:0;cursor:pointer;padding:2px 8px;border-radius:7px;transition:.16s;
+}
+.help-x:hover{background:#eef2f6;color:var(--brand)}
+.help-body{
+  padding:6px 26px 18px;overflow-y:auto;
+  display:grid;grid-template-columns:1fr 1fr;gap:0 34px;
+}
+.help-body section{padding:16px 0 12px;border-bottom:1px solid #f0f2f5}
+.help-body section:nth-last-child(-n+2){border-bottom:0}
+.help-body h3{
+  font-size:12px;font-weight:600;color:var(--brand-2);letter-spacing:1.4px;
+  margin-bottom:11px;
+}
+.help-body dl{display:grid;grid-template-columns:auto 1fr;gap:9px 12px;align-items:start}
+.help-body dt{white-space:nowrap}
+.help-body dd{
+  font-size:11.5px;line-height:1.68;color:var(--ink-2);
+}
+kbd{
+  font-family:inherit;font-size:10.5px;color:var(--brand);
+  background:#eef3f7;border:1px solid rgba(30,75,110,.14);
+  border-bottom-width:2px;border-radius:5px;
+  padding:2px 7px;letter-spacing:.3px;
+}
+.help-note{
+  margin-top:9px;font-size:10.5px;line-height:1.7;color:#8f9aa6;
+}
+.help-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:14px 26px;border-top:1px solid var(--line);background:#fafbfc;
+  font-size:11px;color:var(--ink-2);
+}
+.only-mobile{display:none}
 
 /* ---------- 标签层 ---------- */
 #labels{position:absolute;inset:0;z-index:8;pointer-events:none;overflow:hidden}
@@ -275,8 +342,33 @@ body{
     flex-wrap:wrap;justify-content:center;gap:4px;padding:6px;
   }
   .vp{padding:6px 9px;font-size:11.5px}
+  /* 手机上底部那行鼠标提示没意义，整条藏掉。
+     入口就用顶栏那个「操作说明」按钮——它本来就在手机上显示，
+     放在这里会跟顶栏按钮抢位置。 */
   .hint{display:none}
   .blabel{font-size:10px;padding:2px 7px}
+  /* 操作说明面板：单列、卡片贴满，正文可滚 */
+  .help{padding:0}
+  .help-card{width:100%;height:100%;max-height:100%;border-radius:0}
+  .help-head{padding:16px 18px 12px}
+  .help-head h2{font-size:15.5px}
+  .help-body{
+    grid-template-columns:1fr;padding:2px 18px 14px;gap:0;
+  }
+  .help-body section{padding:14px 0 10px}
+  .help-body section:nth-last-child(-n+2){border-bottom:1px solid #f0f2f5}
+  .help-body section:last-child{border-bottom:0}
+  .help-body dl{grid-template-columns:1fr;gap:5px 0}
+  .help-body dt{margin-top:7px}
+  .help-body dd{font-size:11.5px;line-height:1.66}
+  .help-foot{padding:12px 18px;font-size:10.5px}
+  .only-desktop{display:none}
+  .only-mobile{display:inline}
+  /* 手机上外接键盘才有快捷键，这一节收成一句提示，省得占满一屏 */
+  #help-kb dl{display:none}
+  #help-kb .help-note{display:block;margin-top:0}
+  /* 鼠标那一节在手机上也留着：老师用手机演示、或者外接鼠标时用得上，
+     只是排到单列最下面，不占首屏 */
   /* 手机上说明卡窄一些、行距紧一些，不要裁字也不要盖住两行的底部视角条 */
   .disclaimer{width:calc(100% - 32px);left:16px;bottom:118px;padding:10px 12px;font-size:10px;line-height:1.6}
   .disclaimer .btn{margin-top:8px}

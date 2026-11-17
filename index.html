@@ -27,9 +27,10 @@
       </div>
     </div>
     <div class="top-actions">
-      <button id="btn-tour" class="btn" title="按顺序自动巡游各区域">自动巡游</button>
-      <button id="btn-light" class="btn" title="切换日景 / 黄昏">黄昏</button>
-      <button id="btn-reset" class="btn" title="回到总览视角">重置视角</button>
+      <button id="btn-help" class="btn" title="操作说明（H 键）">操作说明</button>
+      <button id="btn-tour" class="btn" title="按顺序自动巡游各区域（T 键）">自动巡游</button>
+      <button id="btn-light" class="btn" title="切换日景 / 黄昏（D 键）">黄昏</button>
+      <button id="btn-reset" class="btn" title="回到总览视角（R 键）">重置视角</button>
     </div>
   </header>
 
@@ -73,8 +74,75 @@
   <nav class="viewpoints" id="viewpoints"></nav>
 
   <!-- 操作提示 -->
-  <div class="hint">
-    <span>拖动旋转</span><span>滚轮缩放</span><span>右键平移</span><span>点击建筑查看详情</span>
+  <div class="hint" id="hint">
+    <span>左键拖动旋转</span><span>滚轮缩放</span><span>右键拖动平移</span><span>点楼看详情</span>
+    <button id="hint-help">全部操作</button>
+  </div>
+
+  <!-- 操作说明面板 -->
+  <div class="help" id="help" hidden>
+    <div class="help-card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="help-head">
+        <h2 id="help-title">操作说明</h2>
+        <button id="btn-help-close" class="help-x" title="关闭（Esc）">×</button>
+      </div>
+
+      <div class="help-body">
+        <section id="help-mouse">
+          <h3>电脑 · 鼠标</h3>
+          <dl>
+            <dt><kbd>左键拖动</kbd></dt><dd>转着看。左右拖是绕校园转圈，上下拖是抬高或压低视线。</dd>
+            <dt><kbd>滚轮</kbd></dt><dd>往前推拉近、往后拉远。最近能贴到楼跟前，最远能看全整座校园。</dd>
+            <dt><kbd>右键拖动</kbd></dt><dd>平移画面。想看东边那条路，不用转圈，直接往那边推。</dd>
+            <dt><kbd>左键单击楼</kbd></dt><dd>弹出右侧详情：层数、高度、占地面积、开设专业、馆内点位。</dd>
+            <dt><kbd>鼠标悬停</kbd></dt><dd>鼠标移到哪栋楼，哪栋楼会微微发亮，先认一认再点。</dd>
+          </dl>
+          <p class="help-note">用的是 OrbitControls：拖一点点不算点击，所以拖动时不会误弹出详情。</p>
+        </section>
+
+        <section id="help-touch">
+          <h3>手机 · 触屏</h3>
+          <dl>
+            <dt><kbd>单指拖动</kbd></dt><dd>转着看，和电脑左键拖动一样。</dd>
+            <dt><kbd>双指捏合</kbd></dt><dd>放大缩小。</dd>
+            <dt><kbd>双指拖动</kbd></dt><dd>平移画面。</dd>
+            <dt><kbd>轻点楼</kbd></dt><dd>弹出详情面板，点右上角 × 关掉。</dd>
+          </dl>
+          <p class="help-note">手机竖屏时左侧分区栏会收成右上角一个圆按钮，点开是同一份列表。</p>
+        </section>
+
+        <section id="help-kb">
+          <h3>键盘</h3>
+          <p class="help-note" style="margin-top:0">手机上一般没有键盘，这一节可以跳过；接外接键盘，或者用电脑打开，这些键都能用。</p>
+          <dl>
+            <dt><kbd>H</kbd></dt><dd>打开或关掉这张操作说明。</dd>
+            <dt><kbd>T</kbd></dt><dd>自动巡游，按顺序把七个区域走一遍。转一下鼠标或按 Esc 就停。</dd>
+            <dt><kbd>D</kbd></dt><dd>切换日景和黄昏。黄昏时窗户会亮起来。</dd>
+            <dt><kbd>R</kbd></dt><dd>回到总览视角。</dd>
+            <dt><kbd>1</kbd> – <kbd>7</kbd></dt><dd>直接跳到第 1 到第 7 个视角，顺序和底部按钮一致。</dd>
+            <dt><kbd>Esc</kbd></dt><dd>关掉详情面板、关掉这张说明、停止巡游。</dd>
+          </dl>
+        </section>
+
+        <section>
+          <h3>界面上都是什么</h3>
+          <dl>
+            <dt><kbd>左侧分区栏</kbd></dt><dd>十七栋楼按中心区、教学区、实训区、生活区分组。点某一类，场景里只亮这一类。</dd>
+            <dt><kbd>底部七个视角</kbd></dt><dd>校园总览、学校正门、实训区、教学区、匠心湖、运动场、生活区。点一下镜头就飞过去。</dd>
+            <dt><kbd>自动巡游</kbd></dt><dd>从你现在的位置开始，六秒一站往前走，适合放在开放日的大屏上循环。</dd>
+            <dt><kbd>黄昏</kbd></dt><dd>整座校园换一遍光，路灯和窗子亮起来。</dd>
+            <dt><kbd>重置视角</kbd></dt><dd>不管你转到哪儿，一键回总览。</dd>
+            <dt><kbd>楼下的路名</kbd></dt><dd>十四条主路都标着名字：横向的匠远路、匠诚路、匠行路、匠心路、匠德路，纵向的平安大道、匠运大道、匠能大道、领航大道、团结大道。镜头拉远时路名会自动变淡，不会挡住场景。</dd>
+          </dl>
+        </section>
+      </div>
+
+      <div class="help-foot">
+        <span class="only-desktop">按 <kbd>H</kbd> 随时打开这份说明</span>
+        <span class="only-mobile">随时可以从右上角再打开</span>
+        <button id="btn-help-ok" class="btn primary">知道了</button>
+      </div>
+    </div>
   </div>
 
   <!-- 加载 -->
