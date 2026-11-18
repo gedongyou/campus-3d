@@ -429,6 +429,9 @@ const MAT = {
   parapet: new THREE.MeshStandardMaterial({ color: 0xf0ece2, roughness: 0.9 }),
   plinth: new THREE.MeshStandardMaterial({ color: 0xa5a196, roughness: 0.95 }),
   trim: new THREE.MeshStandardMaterial({ color: 0xf4f1e9, roughness: 0.85 }),
+  // 雨棚顶：比墙面饰条深一档的暖灰。原来用 trim（0xf4f1e9，几乎纯白），
+  // 正俯视时是压在步道上的一块白板 —— 俯视角度只看得到顶面。
+  canopy: new THREE.MeshStandardMaterial({ color: 0xcdc7b8, roughness: 0.9 }),
   metal: new THREE.MeshStandardMaterial({ color: 0x76838d, roughness: 0.5, metalness: 0.55 }),
   glass: new THREE.MeshStandardMaterial({ color: 0x7fa3b8, roughness: 0.14, metalness: 0.4, transparent: true, opacity: 0.88 }),
   road: null,
@@ -527,6 +530,9 @@ MAT_ROAD.map.repeat.set(1, 1);
 const MAT_CURB = new THREE.MeshStandardMaterial({ color: 0xc9c4b6, roughness: 1 });
 const MAT_LINE = new THREE.MeshBasicMaterial({ color: 0xf2eee2 });
 const MAT_SIDEWALK = new THREE.MeshStandardMaterial({ color: 0xc9c3b2, roughness: 1 });
+/* 米色铺装：支路、楼门口、雨棚下的小块地都用它。
+   原来门口那块用的是 MAT.trim（0xf4f1e9，几乎纯白），俯视看是墙上掉下来的一块白板。 */
+const MAT_PATH = new THREE.MeshStandardMaterial({ color: 0xd9c8a4, roughness: 0.98 });
 
 /* 路口处理：
    原来每条路各铺一张沥青面片，十字路口处两张面片重叠。即使错开 2mm，远距离俯视时
@@ -1736,16 +1742,23 @@ function buildBuilding(b) {
   if (b.kind === 'hall' || b.kind === 'dorm') {
     const fe = frontEdge(b);
     if (fe && fe.len > 10) {
-      const cw = Math.min(fe.len * 0.44, 26);
-      const canopy = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.6, 7.5), MAT.trim);
-      canopy.position.set(fe.mx + fe.nx * 3.3, 5.4, fe.mz + fe.nz * 3.3);
+      const cw = Math.min(fe.len * 0.32, 16);
+      // 雨棚进深：真实的门斗雨棚就是两米多，不会一路挑到路边。
+      // 一开始按「门口到步道空隙的 55%」算，食堂那里空隙 6.6 米、棚就挑出去
+      // 4 米，正好把整条米色支路盖在底下 —— 正俯视只看得到棚顶，看着像路断了。
+      // 现在封顶 2.8 米，剩下的空隙留给铺装露出来。
+      const cd = Math.min(2.2, Math.max(2.0, fe.d * 0.26));
+      const canopy = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.6, cd), MAT.canopy);
+      canopy.position.set(fe.mx + fe.nx * (cd / 2 + 0.25), 5.4, fe.mz + fe.nz * (cd / 2 + 0.25));
       canopy.rotation.y = -fe.ang;
       canopy.castShadow = true;
       grp.add(canopy);
-      // 雨棚下的一小片铺装，让门口看着是"地"不是"草"
-      const pad = new THREE.Mesh(new THREE.PlaneGeometry(cw * 0.92, 6.4), MAT.trim);
+      // 雨棚下的一小片铺装：米色，和支路同色，两块地接得上。
+      // 平面先绕自身法线转到门脸方向（rotation.z），再放平（rotation.x）。
+      const pad = new THREE.Mesh(new THREE.PlaneGeometry(cw * 0.92, cd * 0.96), MAT_PATH);
       pad.rotation.x = -Math.PI / 2;
-      pad.position.set(fe.mx + fe.nx * 3.0, 0.115, fe.mz + fe.nz * 3.0);
+      pad.rotation.z = -fe.ang;
+      pad.position.set(fe.mx + fe.nx * (cd / 2 + 0.3), 0.138, fe.mz + fe.nz * (cd / 2 + 0.3));
       pad.receiveShadow = true;
       groundGroup.add(pad);
     }
@@ -2220,8 +2233,10 @@ ribbonLine(WALK.pts, 2.9, ROUTE_Y_WALK + 0.006, 0xd8724a, 0.96, 4);
    颜色取人行道同色系（0xd8d2c1），比草地深、比沥青浅，
    俯视时一眼能看出"这条路通向那栋楼"。 */
 SPURS.forEach(sp => {
-  const m = ribbonLine(sp.pts, 4.6, 0.145, 0xd8d2c1, 1, 2);
-  m.material.depthWrite = true;
+  // 先铺一条略宽的深色边，再压一条米色主带 —— 俯视时两侧各露出 0.35 米的边，
+  // 和草地分开，才看得出这是一条路，而不是地上一块浅色斑。
+  ribbonLine(sp.pts, 5.4, 0.142, 0xbfae8d, 1, 2);
+  ribbonLine(sp.pts, 4.7, 0.152, 0xdcc79c, 1, 2);
 });
 
 /* 站点圆点：小圆柱 + 白圈，编号由 HTML 标签标（见 makeRouteLabels） */
