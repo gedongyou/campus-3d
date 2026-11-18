@@ -4,7 +4,7 @@ import { CAMPUS } from './config.js';
 import {
   SITE, TRACK, ROADS, GATES, COURTS, ISLAND, LAKE, BUILDINGS,
 } from './plan.js';
-import { LOTS, DRIVES, WALK, STOPS } from './route.js';
+import { LOTS, DRIVES, WALK, STOPS, SPURS } from './route.js';
 
 /* =========================================================
    0. 基础环境
@@ -748,10 +748,25 @@ const LAKE_C = centroid(LAKE);
   shallow.receiveShadow = false;
   groundGroup.add(shallow);
 
-  // 湖心岛
+  // 湖心岛：铺装平台，不是草坪。做成浅灰石材色，
+  // 和岸边的石带、月牙台踏面是同一套颜色。
   const ISLE_S = smoothClosed(ISLAND, 8);
-  const isle = new THREE.Mesh(fillPoly(ISLE_S, 0.26), new THREE.MeshStandardMaterial({ color: 0x7f9c60, roughness: 1 }));
+  const isle = new THREE.Mesh(fillPoly(ISLE_S, 0.26), new THREE.MeshStandardMaterial({ color: 0xaba79c, roughness: 0.96 }));
   groundGroup.add(isle);
+  // 岛缘一圈压边石，让灰色平台和水面之间有个收口。
+  // 沿质心方向外扩（和湖岸石带同一套写法），不能用逐顶点法向偏移，凹多边形会自交。
+  const ISLE_C = centroid(ISLE_S);
+  const isleOuter = ISLE_S.map(([x, z]) => {
+    const dx = x - ISLE_C[0], dz = z - ISLE_C[1];
+    const L = Math.hypot(dx, dz) || 1;
+    return [x + (dx / L) * 1.6, z + (dz / L) * 1.6];
+  });
+  const isleRim = new THREE.Mesh(
+    ringBand(isleOuter, ISLE_S, 0.30),
+    new THREE.MeshStandardMaterial({ color: 0xc2bdb0, roughness: 0.92 })
+  );
+  isleRim.receiveShadow = true;
+  groundGroup.add(isleRim);
 
   // ---- 折线栈桥（航拍照片里湖南北向的之字形木栈道）----
   const deckMat = new THREE.MeshStandardMaterial({ color: 0xb08a5e, roughness: 0.88 });
@@ -1612,6 +1627,42 @@ const buildingNodes = [];
 
 const ROOF_ACCENT = new THREE.MeshStandardMaterial({ color: 0x9aa3a8, roughness: 0.9 });
 
+/* 门脸：该楼所有边里，中点离步行环线最近的那一条。
+   nx / nz 是这条边朝外的法向（背离楼的形心），用来把雨棚往外挑。 */
+function frontEdge(b) {
+  const poly = b.parts[0];
+  if (!poly || poly.length < 3) return null;
+  let cx = 0, cz = 0;
+  poly.forEach(p => { cx += p[0]; cz += p[1]; });
+  cx /= poly.length; cz /= poly.length;
+
+  let best = null;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], c2 = poly[(i + 1) % poly.length];
+    const len = Math.hypot(c2[0] - a[0], c2[1] - a[1]);
+    if (len < 6) continue;
+    const mx = (a[0] + c2[0]) / 2, mz = (a[1] + c2[1]) / 2;
+    let dmin = Infinity;
+    for (let k = 0; k < WALK.pts.length - 1; k++) {
+      const p = WALK.pts[k], q = WALK.pts[k + 1];
+      const dx = q[0] - p[0], dz = q[1] - p[1];
+      const L2 = dx * dx + dz * dz || 1;
+      let t = ((mx - p[0]) * dx + (mz - p[1]) * dz) / L2;
+      t = Math.max(0, Math.min(1, t));
+      const d = Math.hypot(mx - (p[0] + dx * t), mz - (p[1] + dz * t));
+      if (d < dmin) dmin = d;
+    }
+    if (!best || dmin < best.d) {
+      // 朝外法向
+      let nx = -(c2[1] - a[1]) / len, nz = (c2[0] - a[0]) / len;
+      if (nx * (mx - cx) + nz * (mz - cz) < 0) { nx = -nx; nz = -nz; }
+      best = { a, b: c2, len, mx, mz, nx, nz, d: dmin,
+               ang: Math.atan2(c2[1] - a[1], c2[0] - a[0]) };
+    }
+  }
+  return best;
+}
+
 function buildBuilding(b) {
   const grp = new THREE.Group();
   grp.userData.building = b;
@@ -1679,24 +1730,24 @@ function buildBuilding(b) {
     }
   });
 
-  // 主入口雨棚（临南面的最长边）
+  // 主入口雨棚。门脸由 frontEdge() 统一挑（离步行环线最近的那条边），
+  // 和 tools/gen_spurs.py 算支路终点用的是同一条规则 —— 这样米色支路
+  // 一定接在雨棚底下，不会出现"路接到侧面墙上"的错位。
   if (b.kind === 'hall' || b.kind === 'dorm') {
-    const poly = b.parts[0];
-    let best = null;
-    for (let i = 0; i < poly.length; i++) {
-      const a = poly[i], c2 = poly[(i + 1) % poly.length];
-      const len = Math.hypot(c2[0] - a[0], c2[1] - a[1]);
-      if (!best || len > best.len) best = { a, b: c2, len };
-    }
-    if (best && best.len > 10) {
-      const mx = (best.a[0] + best.b[0]) / 2, mz = (best.a[1] + best.b[1]) / 2;
-      const ang = Math.atan2(best.b[1] - best.a[1], best.b[0] - best.a[0]);
-      const cw = Math.min(best.len * 0.44, 26);
+    const fe = frontEdge(b);
+    if (fe && fe.len > 10) {
+      const cw = Math.min(fe.len * 0.44, 26);
       const canopy = new THREE.Mesh(new THREE.BoxGeometry(cw, 0.6, 7.5), MAT.trim);
-      canopy.position.set(mx, 5.4, mz);
-      canopy.rotation.y = -ang;
+      canopy.position.set(fe.mx + fe.nx * 3.3, 5.4, fe.mz + fe.nz * 3.3);
+      canopy.rotation.y = -fe.ang;
       canopy.castShadow = true;
       grp.add(canopy);
+      // 雨棚下的一小片铺装，让门口看着是"地"不是"草"
+      const pad = new THREE.Mesh(new THREE.PlaneGeometry(cw * 0.92, 6.4), MAT.trim);
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(fe.mx + fe.nx * 3.0, 0.115, fe.mz + fe.nz * 3.0);
+      pad.receiveShadow = true;
+      groundGroup.add(pad);
     }
   }
 
@@ -2164,6 +2215,14 @@ DRIVES.forEach(dr => dashedLine(dr.pts, 3.6, ROUTE_Y_DRIVE, dr.color, 8, 6, 1));
 // 远看就是一条白线 —— 描边必须是底不是面。
 ribbonLine(WALK.pts, 4.0, ROUTE_Y_WALK, 0xffffff, 0.92, 3);
 ribbonLine(WALK.pts, 2.9, ROUTE_Y_WALK + 0.006, 0xd8724a, 0.96, 4);
+
+/* 支路：从环线分出去、直通楼门口的米色铺装。
+   颜色取人行道同色系（0xd8d2c1），比草地深、比沥青浅，
+   俯视时一眼能看出"这条路通向那栋楼"。 */
+SPURS.forEach(sp => {
+  const m = ribbonLine(sp.pts, 4.6, 0.145, 0xd8d2c1, 1, 2);
+  m.material.depthWrite = true;
+});
 
 /* 站点圆点：小圆柱 + 白圈，编号由 HTML 标签标（见 makeRouteLabels） */
 const stopMeshes = [];
