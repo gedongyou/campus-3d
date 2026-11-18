@@ -1750,6 +1750,26 @@ BUILDINGS.forEach(buildBuilding);
   // 升旗台 + 台前广场，别让树种上去
   const onFlag = (x, z) =>
     Math.abs(x - FLAG.x) < FLAG.w / 2 + 12 && Math.abs(z - FLAG.z) < FLAG.d / 2 + 4;
+  // 游览路线与停车场：树不能种在步道、车位和站点上
+  // （俯视图上能一眼看出一棵树长在停车场正中间，比什么都刺眼）
+  const onRoute = (x, z) => {
+    for (let i = 0; i < WALK.pts.length - 1; i++) {
+      const a2 = WALK.pts[i], b2 = WALK.pts[i + 1];
+      const vx = b2[0] - a2[0], vz = b2[1] - a2[1];
+      const L2 = vx * vx + vz * vz;
+      let t = L2 > 0 ? ((x - a2[0]) * vx + (z - a2[1]) * vz) / L2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      if (Math.hypot(x - (a2[0] + vx * t), z - (a2[1] + vz * t)) < 5.5) return true;
+    }
+    for (let i = 0; i < LOTS.length; i++) {
+      const L = LOTS[i];
+      if (Math.abs(x - L.cx) < L.w / 2 + 3 && Math.abs(z - L.cz) < L.d / 2 + 3) return true;
+    }
+    for (let i = 0; i < STOPS.length; i++) {
+      if (Math.hypot(x - STOPS[i].at[0], z - STOPS[i].at[1]) < 7) return true;
+    }
+    return false;
+  };
   const inCourt = (x, z) => {
     const gap = COURTS.gap || 4;
     const halfX = (COURTS.cols * COURTS.w + (COURTS.cols - 1) * gap) / 2 + 3.5;
@@ -1760,7 +1780,8 @@ BUILDINGS.forEach(buildBuilding);
   const spots = [];
   const push = (x, z, sc) => {
     if (x < SITE.x1 + 4 || x > SITE.x2 - 4 || z < SITE.z1 + 4 || z > SITE.z2 - 4) return;
-    if (onRoad(x, z) || onTrack(x, z) || onLake(x, z) || inCourt(x, z) || onFlag(x, z) || onGate(x, z)) return;
+    if (onRoad(x, z) || onTrack(x, z) || onLake(x, z) || inCourt(x, z) ||
+        onFlag(x, z) || onGate(x, z) || onRoute(x, z)) return;
     if (blocked.some(p => inPoly(x, z, p))) return;
     spots.push([x, z, sc]);
   };
@@ -1958,39 +1979,48 @@ const routeGroup = new THREE.Group();
 routeGroup.name = 'routes';
 scene.add(routeGroup);
 
-function ribbonLine(pts, w, y, color, opacity = 1) {
-  // 折线 → 三角带（每段一个四边形，接缝处补一个梯形拐角，避免出现豁口）
+function ribbonLine(pts, w, y, color, opacity = 1, order = 3) {
+  // 折线 → 等宽带子，拐角用「圆角（round join）」。
+  // 之前用 miter：急转弯处两条边的偏移点会甩出去很远，俯视看是一坨楔形尖角；
+  // 用独立四边形不补角：转弯外侧又会豁开一个口子。圆角两头都不犯。
   const pos = [], idx = [];
-  let vi = 0;
   const half = w / 2;
-  const dirAt = (i) => {
-    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+  const pushQuad = (a, b) => {
     const dx = b[0] - a[0], dz = b[1] - a[1];
-    const L = Math.hypot(dx, dz) || 1;
-    return [dx / L, dz / L];
+    const L = Math.hypot(dx, dz);
+    if (L < 1e-3) return;
+    const nx = -(dz / L) * half, nz = (dx / L) * half;
+    const vi = pos.length / 3;
+    pos.push(a[0] + nx, y, a[1] + nz,
+             a[0] - nx, y, a[1] - nz,
+             b[0] - nx, y, b[1] - nz,
+             b[0] + nx, y, b[1] + nz);
+    idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3);
   };
-  for (let i = 0; i < pts.length; i++) {
-    const [dx, dz] = dirAt(i);
-    const nx = -dz * half, nz = dx * half;
-    const p = pts[i];
-    pos.push(p[0] + nx, y, p[1] + nz, p[0] - nx, y, p[1] - nz);
-  }
-  for (let i = 0; i < pts.length - 1; i++) {
-    const a = i * 2, b = (i + 1) * 2;
-    idx.push(a, a + 1, b, b, a + 1, b + 1);
-    vi += 4;
-  }
+  const SEG = 10;
+  const pushDisc = (c) => {
+    const vi = pos.length / 3;
+    pos.push(c[0], y, c[1]);
+    for (let k = 0; k <= SEG; k++) {
+      const t = (k / SEG) * Math.PI * 2;
+      pos.push(c[0] + Math.cos(t) * half, y, c[1] + Math.sin(t) * half);
+    }
+    for (let k = 0; k < SEG; k++) idx.push(vi, vi + 1 + k, vi + 2 + k);
+    // 反面再补一遍，省掉 DoubleSide 的背面剔除问题
+    for (let k = 0; k < SEG; k++) idx.push(vi, vi + 2 + k, vi + 1 + k);
+  };
+  const n = pts.length;
+  for (let i = 0; i < n - 1; i++) pushQuad(pts[i], pts[i + 1]);
+  for (let i = 1; i < n - 1; i++) pushDisc(pts[i]);
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(
     new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
   g.setIndex(idx);
-  // side: DoubleSide 不能省 —— 这条带子的三角面绕序取决于折线往哪边拐，
-  // 只画正面的话，往回走的那半圈会整个消失（第一次做就是这样，橙线只看得见一半）
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
-    color, transparent: opacity < 1, opacity, depthWrite: false, side: THREE.DoubleSide,
+    color, transparent: false, opacity: 1, depthWrite: true, side: THREE.DoubleSide,
   }));
-  m.renderOrder = 3;
+  m.renderOrder = order;
   routeGroup.add(m);
   return m;
 }
@@ -2062,27 +2092,47 @@ function buildLot(lot) {
     }
     addLine(cx, z0 + 0.4, w - 2, 0.16);
     addLine(cx, z0 + rowD - 0.4, w - 2, 0.16);
-    // 占位车
+    // 占位车。车头朝外、车身沿车位进深方向（z）摆，
+    // 尺寸不能超过车位：小车 1.8 × 4.2、大巴 2.5 × 11（宽 × 长）
+    const isBus = stallD > 8;
+    const bodyW = isBus ? 2.5 : 1.8;          // x 向 = 车宽
+    const bodyL = isBus ? 11.0 : 4.2;         // z 向 = 车长
+    const bodyH = isBus ? 2.9 : 1.32;
     for (let i = 0; i < stalls.length; i++) {
       if (stalls[i].row !== r) continue;
       const car = new THREE.Group();
+      const paint = carColors[carIdx++ % carColors.length];
       const body = new THREE.Mesh(
-        new THREE.BoxGeometry(stallD > 8 ? 11 : 4.2, stallD > 8 ? 2.9 : 1.2, stallD > 8 ? 2.5 : 1.8),
-        new THREE.MeshStandardMaterial({
-          color: carColors[carIdx++ % carColors.length], roughness: 0.42, metalness: 0.35,
-        })
+        new THREE.BoxGeometry(bodyW, bodyH, bodyL),
+        new THREE.MeshStandardMaterial({ color: paint, roughness: 0.42, metalness: 0.35 })
       );
-      body.position.y = stallD > 8 ? 1.9 : 0.9;
+      body.position.y = bodyH / 2 + 0.18;
       body.castShadow = true;
       car.add(body);
-      if (stallD <= 8) {
+      if (isBus) {
+        // 大巴：车窗带一条深色腰线 + 车顶稍微收进
+        const band = new THREE.Mesh(
+          new THREE.BoxGeometry(bodyW + 0.06, 0.95, bodyL * 0.86),
+          new THREE.MeshStandardMaterial({ color: 0x27323c, roughness: 0.22, metalness: 0.45 })
+        );
+        band.position.set(0, bodyH * 0.72, 0);
+        car.add(band);
+        const roof = new THREE.Mesh(
+          new THREE.BoxGeometry(bodyW - 0.25, 0.16, bodyL - 0.7),
+          new THREE.MeshStandardMaterial({ color: 0xdcdcd6, roughness: 0.55, metalness: 0.2 })
+        );
+        roof.position.set(0, bodyH + 0.22, 0);
+        car.add(roof);
+      } else {
+        // 小车：上半截是座舱，前后各收一点，别做成一个整方盒
         const cabin = new THREE.Mesh(
-          new THREE.BoxGeometry(2.2, 0.8, 1.62),
+          new THREE.BoxGeometry(bodyW - 0.16, 0.62, bodyL * 0.52),
           new THREE.MeshStandardMaterial({ color: 0x2b3a46, roughness: 0.18, metalness: 0.5 })
         );
-        cabin.position.set(-0.1, 1.78, 0);
+        cabin.position.set(0, bodyH + 0.16, -0.1);
         car.add(cabin);
       }
+      // 车身长边沿 z（车位进深方向），不要再转 90 度 —— 转了就又横过来了
       car.position.set(x0 + stalls[i].slot * stallW + stallW / 2, 0, zc);
       routeGroup.add(car);
     }
@@ -2108,8 +2158,10 @@ LOTS.forEach(buildLot);
 
 /* 车行线（虚线，蓝色）+ 步行线（实线，暖橙 + 白描边） */
 DRIVES.forEach(dr => dashedLine(dr.pts, 3.4, ROUTE_Y_DRIVE, dr.color, 7, 5, 0.9));
-ribbonLine(WALK.pts, 5.6, ROUTE_Y_WALK + 0.004, 0xffffff, 0.9);
-ribbonLine(WALK.pts, 4.2, ROUTE_Y_WALK, 0xd8724a, 0.95);
+// 白描边在下、橙色主线在上。原来白带比橙带高 4mm 又更宽，正俯视时白带整个把橙色盖住，
+// 远看就是一条白线 —— 描边必须是底不是面。
+ribbonLine(WALK.pts, 4.0, ROUTE_Y_WALK, 0xffffff, 0.92, 3);
+ribbonLine(WALK.pts, 2.9, ROUTE_Y_WALK + 0.006, 0xd8724a, 0.96, 4);
 
 /* 站点圆点：小圆柱 + 白圈，编号由 HTML 标签标（见 makeRouteLabels） */
 const stopMeshes = [];
