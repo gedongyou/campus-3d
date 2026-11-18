@@ -400,13 +400,16 @@ kbd{
   padding:12px 14px 10px;font-size:12px;font-weight:600;color:var(--brand);
   letter-spacing:1px;border-bottom:1px solid var(--line);
 }
-.rp-body{padding:5px;max-height:min(34vh,286px);overflow-y:auto;flex:0 1 auto}
+.rp-body{padding:5px;max-height:min(42vh,330px);overflow-y:auto;flex:0 0 auto}
+/* 路线列表打开时把上面的分区列表压矮一点，七个站点才排得下。
+   原来两块共用一个高度预算，第 7 站被压在面板边缘下面。 */
+.sidebar:not(.hide-route) .panel-body{max-height:min(16vh,140px)}
 .rp-body::-webkit-scrollbar{width:4px}
 .rp-body::-webkit-scrollbar-thumb{background:#c8d2db;border-radius:2px}
 
 .rstop{
   display:flex;align-items:center;gap:8px;
-  padding:6px 8px;border-radius:8px;cursor:pointer;transition:.15s;
+  padding:5px 8px;border-radius:8px;cursor:pointer;transition:.15s;
 }
 .rstop:hover{background:#eef3f7}
 .rstop.active{background:#e8f0f6}
