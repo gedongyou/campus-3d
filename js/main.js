@@ -526,7 +526,7 @@ MAT_ROAD.map.wrapS = MAT_ROAD.map.wrapT = THREE.RepeatWrapping;
 MAT_ROAD.map.repeat.set(1, 1);
 const MAT_CURB = new THREE.MeshStandardMaterial({ color: 0xc9c4b6, roughness: 1 });
 const MAT_LINE = new THREE.MeshBasicMaterial({ color: 0xf2eee2 });
-const MAT_SIDEWALK = new THREE.MeshStandardMaterial({ color: 0xd5d0c2, roughness: 1 });
+const MAT_SIDEWALK = new THREE.MeshStandardMaterial({ color: 0xc9c3b2, roughness: 1 });
 
 /* 路口处理：
    原来每条路各铺一张沥青面片，十字路口处两张面片重叠。即使错开 2mm，远距离俯视时
@@ -652,7 +652,7 @@ const _asphaltMat = new THREE.MeshStandardMaterial({
   roughness: 0.97,
 });
 buildUnionMesh(ROADS.map(r => _rect(r)), 0.20, _asphaltMat, 14);
-buildUnionMesh(ROADS.map(r => _rect(r, 3)), 0.12, MAT_SIDEWALK, 14);
+buildUnionMesh(ROADS.map(r => _rect(r, 2.2)), 0.12, MAT_SIDEWALK, 14);
 
 /* 标线 + 路缘石：只在路口之间的段落上画 */
 function addRoad(r, idx) {
