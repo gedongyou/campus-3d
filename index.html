@@ -27,6 +27,7 @@
       </div>
     </div>
     <div class="top-actions">
+      <button id="btn-route" class="btn on" title="显示 / 隐藏游览停车路线（L 键）">游览路线</button>
       <button id="btn-help" class="btn" title="操作说明（H 键）">操作说明</button>
       <button id="btn-tour" class="btn" title="按顺序自动巡游各区域（T 键）">自动巡游</button>
       <button id="btn-light" class="btn" title="切换日景 / 黄昏（D 键）">黄昏</button>
@@ -46,6 +47,17 @@
       <span><i style="background:#5f8ea8"></i>实训区</span>
       <span><i style="background:#8aa06b"></i>生活区</span>
       <span><i style="background:#c4a35a"></i>中心区</span>
+    </div>
+
+    <!-- 游览路线：和分区列表同一块面板，不另起浮层 -->
+    <div class="rp-head">
+      <span>游览 · 停车路线</span>
+      <button id="btn-route-close" class="collapse" title="隐藏路线">—</button>
+    </div>
+    <div class="rp-body" id="route-list"></div>
+    <div class="rp-foot">
+      <span><i class="ln walk"></i>步行游览线　约 1.2 km</span>
+      <span><i class="ln drive"></i>车行入场线</span>
     </div>
   </aside>
 
@@ -119,8 +131,20 @@
             <dt><kbd>T</kbd></dt><dd>自动巡游，按顺序把七个区域走一遍。转一下鼠标或按 Esc 就停。</dd>
             <dt><kbd>D</kbd></dt><dd>切换日景和黄昏。黄昏时窗户会亮起来。</dd>
             <dt><kbd>R</kbd></dt><dd>回到总览视角。</dd>
-            <dt><kbd>1</kbd> – <kbd>7</kbd></dt><dd>直接跳到第 1 到第 7 个视角，顺序和底部按钮一致。</dd>
+            <dt><kbd>1</kbd> – <kbd>8</kbd></dt><dd>直接跳到第 1 到第 8 个视角，顺序和底部按钮一致（第 8 个是游览路线）。</dd>
             <dt><kbd>Esc</kbd></dt><dd>关掉详情面板、关掉这张说明、停止巡游。</dd>
+          </dl>
+        </section>
+
+        <section id="help-route">
+          <h3>游览与停车路线</h3>
+          <dl>
+            <dt><kbd>橙色实线</kbd></dt><dd>步行游览线，闭环，从访客停车场出发绕一圈再回来，全程约 1.2 公里，慢走二十五分钟。</dd>
+            <dt><kbd>蓝色虚线</kbd></dt><dd>车行入场线，从两个校门分别引到停车场。走的是真马路，所以用虚线，和路面画在一起。</dd>
+            <dt><kbd>编号圆点</kbd></dt><dd>七个站点。点侧栏里的站名，或者直接点场景里的圆点，镜头就飞过去。</dd>
+            <dt><kbd>灰色地块</kbd></dt><dd>两处停车场：学校主入口内侧的访客停车场、实训区的大巴停车场。</dd>
+            <dt><kbd>L</kbd></dt><dd>整组路线显示或隐藏。人多的场合关掉，画面干净些。</dd>
+            
           </dl>
         </section>
 

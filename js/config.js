@@ -20,6 +20,8 @@ export const CAMPUS = {
     { id: 'lake',     name: '匠心湖',   pos: [24, 92, 168], target: [52, 0, 34] },
     { id: 'sport',    name: '运动场',   pos: [272, 95, 250], target: [272, 0, 14] },
     { id: 'dorm',     name: '生活区',   pos: [318, 105, 95], target: [280, 24, -60] },
+    // 游览路线：斜上方压下来，让橙色闭环整圈都在画面里
+    { id: 'route',    name: '游览路线', pos: [40, 260, 400], target: [60, 0, 20] },
   ],
 };
 

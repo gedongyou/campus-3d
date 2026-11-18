@@ -4,6 +4,7 @@ import { CAMPUS } from './config.js';
 import {
   SITE, TRACK, ROADS, GATES, COURTS, ISLAND, LAKE, BUILDINGS,
 } from './plan.js';
+import { LOTS, DRIVES, WALK, STOPS } from './route.js';
 
 /* =========================================================
    0. 基础环境
@@ -1939,6 +1940,202 @@ BUILDINGS.forEach(buildBuilding);
   }
 })();
 
+
+/* ---------- 游览停车路线 ----------
+   两层要分开画，不能混：
+   · 车行线（DRIVES）沿路面走，画在沥青面之上、标线之下（y=0.207），用虚线，
+     因为它和真路是重合的 —— 画成实色会把路盖住。
+   · 步行线（WALK）不走车行道，穿广场、绕湖、沿楼前，画在铺装之上（y=0.235），
+     用实线 + 白色描边，远看是一条能跟着走的带子。
+   线的绕障坐标是在 tools/plan_route.py 里用 2.6m 净距的栅格 A* 算出来的，
+   不是目测画上去的（见 js/route.js 顶部注释）。
+*/
+const ROUTE_Y_DRIVE = 0.207;
+const ROUTE_Y_WALK = 0.235;
+// 路线单独放一个组：侧栏里"游览路线"开关一次就是整组显隐，
+// 不用挨个记 mesh 引用，也不会误伤到路面和铺装。
+const routeGroup = new THREE.Group();
+routeGroup.name = 'routes';
+scene.add(routeGroup);
+
+function ribbonLine(pts, w, y, color, opacity = 1) {
+  // 折线 → 三角带（每段一个四边形，接缝处补一个梯形拐角，避免出现豁口）
+  const pos = [], idx = [];
+  let vi = 0;
+  const half = w / 2;
+  const dirAt = (i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
+    const dx = b[0] - a[0], dz = b[1] - a[1];
+    const L = Math.hypot(dx, dz) || 1;
+    return [dx / L, dz / L];
+  };
+  for (let i = 0; i < pts.length; i++) {
+    const [dx, dz] = dirAt(i);
+    const nx = -dz * half, nz = dx * half;
+    const p = pts[i];
+    pos.push(p[0] + nx, y, p[1] + nz, p[0] - nx, y, p[1] - nz);
+  }
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = i * 2, b = (i + 1) * 2;
+    idx.push(a, a + 1, b, b, a + 1, b + 1);
+    vi += 4;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(
+    new Array(pos.length).fill(0).map((_, k) => (k % 3 === 1 ? 1 : 0)), 3));
+  g.setIndex(idx);
+  // side: DoubleSide 不能省 —— 这条带子的三角面绕序取决于折线往哪边拐，
+  // 只画正面的话，往回走的那半圈会整个消失（第一次做就是这样，橙线只看得见一半）
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color, transparent: opacity < 1, opacity, depthWrite: false, side: THREE.DoubleSide,
+  }));
+  m.renderOrder = 3;
+  routeGroup.add(m);
+  return m;
+}
+
+/* 虚线：沿折线按 dash/gap 切段，逐段画小矩形 */
+function dashedLine(pts, w, y, color, dash = 7, gap = 5, opacity = 1) {
+  const pos = [], idx = [];
+  let vi = 0;
+  const half = w / 2;
+  pts.forEach((p, i) => {
+    if (i === pts.length - 1) return;
+    const q = pts[i + 1];
+    const dx = q[0] - p[0], dz = q[1] - p[1];
+    const L = Math.hypot(dx, dz);
+    if (L < 0.01) return;
+    const ux = dx / L, uz = dz / L;
+    const nx = -uz * half, nz = ux * half;
+    let s = 0;
+    while (s < L) {
+      const e = Math.min(L, s + dash);
+      const ax = p[0] + ux * s, az = p[1] + uz * s;
+      const bx = p[0] + ux * e, bz = p[1] + uz * e;
+      pos.push(ax + nx, y, az + nz, ax - nx, y, az - nz,
+               bx - nx, y, bz - nz, bx + nx, y, bz + nz);
+      idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3);
+      vi += 4;
+      s += dash + gap;
+    }
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
+    color, transparent: opacity < 1, opacity, depthWrite: false, side: THREE.DoubleSide,
+  }));
+  m.renderOrder = 3;
+  routeGroup.add(m);
+  return m;
+}
+
+/* 停车场：铺装 + 车位线 + 几辆占位车 */
+const carColors = ['#c9cdd2', '#313d4a', '#8f2f2f', '#3e5a76', '#d8d5cd', '#4a5b4a', '#8d8478'];
+let carIdx = 0;
+
+function buildLot(lot) {
+  const { cx, cz, w, d, stallW, stallD, rows } = lot;
+  const pad = paveArea(cx, cz, w, d, 0.14, 0x8d9095);
+  routeGroup.remove(pad);   // 从 groundGroup 挪到 routeGroup（paveArea 默认加在 groundGroup）
+  routeGroup.add(pad);
+
+  const lineMat = new THREE.MeshBasicMaterial({ color: 0xf2eee2, transparent: true, opacity: 0.85 });
+  const addLine = (x, z, lw, ld) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(lw, ld), lineMat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, 0.16, z);
+    m.renderOrder = 2;
+    routeGroup.add(m);
+  };
+
+  // 每一排车位的纵向范围
+  const rowD = d / rows;
+  for (let r = 0; r < rows; r++) {
+    const z0 = cz - d / 2 + r * rowD;
+    const zc = z0 + rowD / 2;
+    const n = Math.max(1, Math.floor((w - 4) / stallW));
+    const x0 = cx - (n * stallW) / 2;
+    for (let i = 0; i <= n; i++) {
+      addLine(x0 + i * stallW, zc, 0.16, stallD);
+    }
+    addLine(cx, z0 + 0.4, w - 2, 0.16);
+    addLine(cx, z0 + rowD - 0.4, w - 2, 0.16);
+    // 占位车
+    for (let i = 0; i < stalls.length; i++) {
+      if (stalls[i].row !== r) continue;
+      const car = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(stallD > 8 ? 11 : 4.2, stallD > 8 ? 2.9 : 1.2, stallD > 8 ? 2.5 : 1.8),
+        new THREE.MeshStandardMaterial({
+          color: carColors[carIdx++ % carColors.length], roughness: 0.42, metalness: 0.35,
+        })
+      );
+      body.position.y = stallD > 8 ? 1.9 : 0.9;
+      body.castShadow = true;
+      car.add(body);
+      if (stallD <= 8) {
+        const cabin = new THREE.Mesh(
+          new THREE.BoxGeometry(2.2, 0.8, 1.62),
+          new THREE.MeshStandardMaterial({ color: 0x2b3a46, roughness: 0.18, metalness: 0.5 })
+        );
+        cabin.position.set(-0.1, 1.78, 0);
+        car.add(cabin);
+      }
+      car.position.set(x0 + stalls[i].slot * stallW + stallW / 2, 0, zc);
+      routeGroup.add(car);
+    }
+  }
+}
+
+/* 每个停车场里摆几辆车（只影响观感，不影响任何逻辑） */
+const stalls = [];
+LOTS.forEach(lot => {
+  const n = Math.max(1, Math.floor((lot.w - 4) / lot.stallW));
+  const count = Math.min(n, Math.round(n * 0.55));
+  const used = new Set();
+  for (let i = 0; i < count; i++) {
+    let slot = Math.floor(Math.random() * n);
+    let guard = 0;
+    while (used.has(slot) && guard++ < 40) slot = Math.floor(Math.random() * n);
+    used.add(slot);
+    stalls.push({ lot: lot.id, row: i % lot.rows, slot });
+  }
+});
+
+LOTS.forEach(buildLot);
+
+/* 车行线（虚线，蓝色）+ 步行线（实线，暖橙 + 白描边） */
+DRIVES.forEach(dr => dashedLine(dr.pts, 3.4, ROUTE_Y_DRIVE, dr.color, 7, 5, 0.9));
+ribbonLine(WALK.pts, 5.6, ROUTE_Y_WALK + 0.004, 0xffffff, 0.9);
+ribbonLine(WALK.pts, 4.2, ROUTE_Y_WALK, 0xd8724a, 0.95);
+
+/* 站点圆点：小圆柱 + 白圈，编号由 HTML 标签标（见 makeRouteLabels） */
+const stopMeshes = [];
+const routePickables = [];   // 射线拾取用：点站点圆点就飞过去
+STOPS.forEach(s => {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(
+    new THREE.CylinderGeometry(2.6, 2.6, 0.12, 24),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 })
+  );
+  ring.position.y = 0.30;
+  g.add(ring);
+  const core = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.9, 1.9, 0.16, 24),
+    new THREE.MeshStandardMaterial({ color: 0xd8724a, roughness: 0.7 })
+  );
+  core.position.y = 0.34;
+  g.add(core);
+  g.position.set(s.at[0], 0, s.at[1]);
+  routeGroup.add(g);
+  ring.userData.stop = s;
+  core.userData.stop = s;
+  routePickables.push(ring, core);
+  stopMeshes.push({ stop: s, mesh: g, core });
+});
+
 /* =========================================================
    6. 交互
    ========================================================= */
@@ -1973,6 +2170,10 @@ canvas.addEventListener('pointermove', (e) => {
     });
     canvas.style.cursor = b ? 'pointer' : 'grab';
   }
+  if (routeOn && !b) {
+    const hs = raycaster.intersectObjects(routePickables, false)[0];
+    if (hs) canvas.style.cursor = 'pointer';
+  }
 });
 
 canvas.addEventListener('pointerdown', (e) => { pointerDownAt = { x: e.clientX, y: e.clientY }; });
@@ -1982,6 +2183,12 @@ canvas.addEventListener('pointerup', (e) => {
   pointerDownAt = null;
   if (moved > 6) return;
   setPointer(e);
+  // 站点圆点优先：它压在楼前广场上，不能让楼的拾取抢走
+  if (routeOn) {
+    raycaster.setFromCamera(pointer, camera);
+    const h = raycaster.intersectObjects(routePickables, false)[0];
+    if (h && h.object.userData.stop) { flyToStop(h.object.userData.stop); return; }
+  }
   const b = pick();
   if (b) selectBuilding(b);
   else deselect();
@@ -2116,6 +2323,7 @@ function updateLabels() {
     el.style.fontSize = `${11 * scale}px`;
   });
   updateRoadLabels();
+  updateRouteLabels();
 }
 
 /* =========================================================
@@ -2160,6 +2368,85 @@ function highlightArea() {
     if (!duskMode) mat.emissiveIntensity = 0;
   });
 }
+
+/* ---------- 游览路线：站点标签 ---------- */
+const stopEls = [];
+let routeOn = true;
+
+function makeRouteLabels() {
+  STOPS.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'nlabel';
+    el.innerHTML = `<b>${s.no}</b><span>${s.name}</span>`;
+    labelLayer.appendChild(el);
+    stopEls.push({ el, stop: s });
+  });
+}
+
+function updateRouteLabels() {
+  const scale = innerWidth < 820 ? 0.7 : 1;
+  stopEls.forEach(o => {
+    if (!routeOn) { o.el.style.display = 'none'; return; }
+    tmpV.set(o.stop.at[0], 2.6, o.stop.at[1]);
+    const dist = camera.position.distanceTo(tmpV);
+    tmpV.project(camera);
+    if (tmpV.z > 1 || dist > 860) { o.el.style.display = 'none'; return; }
+    o.el.style.display = '';
+    // 夹进视口：站点常常贴在图边，不夹的话「6 运动场」会被裁掉半个字
+    const pad = 56;
+    const x = Math.min(innerWidth - pad, Math.max(pad, (tmpV.x * 0.5 + 0.5) * innerWidth));
+    const y = Math.min(innerHeight - 90, Math.max(60, (-tmpV.y * 0.5 + 0.5) * innerHeight));
+    o.el.style.transform = `translate(-50%,-100%) translate3d(${x}px,${y}px,0)`;
+    o.el.style.opacity = Math.max(0.55, 1 - dist / 1500);
+    o.el.style.fontSize = `${10 * scale}px`;
+  });
+}
+
+/* 飞到某一站：停在站点斜上方，同时把视角压到人眼高度附近，像站在那儿 */
+function flyToStop(s) {
+  stopTour();
+  deselect();
+  const [x, z] = s.at;
+  const r = 46;
+  flyTo([x + r * 0.72, 26, z + r * 0.86], [x, 3, z], 1400);
+  markStop(s.no);
+}
+
+function markStop(no) {
+  document.querySelectorAll('#route-list .rstop').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.no) === no);
+  });
+}
+
+function renderRoute() {
+  const box = document.getElementById('route-list');
+  box.innerHTML = '';
+  STOPS.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'rstop';
+    el.dataset.no = s.no;
+    el.innerHTML = `<span class="no">${s.no}</span>` +
+                   `<span><span class="nm">${s.name}</span><span class="tg">${s.tag}</span></span>`;
+    el.onclick = () => flyToStop(s);
+    box.appendChild(el);
+  });
+}
+
+/* 整组显隐 */
+const sidebarEl = document.getElementById('sidebar');
+const routeBtn = document.getElementById('btn-route');
+
+function setRoute(on) {
+  routeOn = on;
+  routeGroup.visible = on;
+  routeBtn.classList.toggle('on', on);
+  // 路线列表就在侧栏里，关掉时把那一节收起来（分区列表照旧可用）
+  sidebarEl.classList.toggle('hide-route', !on);
+  stopEls.forEach(o => { if (!on) o.el.style.display = 'none'; });
+}
+
+routeBtn.onclick = () => setRoute(!routeOn);
+document.getElementById('btn-route-close').onclick = () => setRoute(false);
 
 function renderViewpoints() {
   vpBar.innerHTML = '';
@@ -2378,9 +2665,10 @@ addEventListener('keydown', (e) => {
   if (k === 't') { tourTimer ? stopTour() : startTour(); return; }
   if (k === 'd') { applyDusk(!duskMode); return; }
   if (k === 'r') { document.getElementById('btn-reset').click(); return; }
+  if (k === 'l') { setRoute(!routeOn); return; }
 
-  // 1–7 对应底部七个视角
-  if (/^[1-7]$/.test(k)) {
+  // 1–8 对应底部八个视角（含最后的"游览路线"）
+  if (/^[1-8]$/.test(k)) {
     const list = CAMPUS.viewpoints.filter(v => v.id !== 'overview-tall');
     const v = list[Number(k) - 1];
     if (!v) return;
@@ -2402,6 +2690,8 @@ addEventListener('resize', () => {
 if (innerWidth < 820) document.getElementById('sidebar').classList.add('collapsed');
 
 makeLabels();
+makeRouteLabels();
+makeRouteLabels && renderRoute();
 renderAreas();
 renderViewpoints();
 animate();
@@ -2421,4 +2711,7 @@ animate();
   requestAnimationFrame(tick);
 })();
 
-window.__campus = { scene, camera, controls, flyTo, selectBuilding, CAMPUS, BUILDINGS, SITE };
+window.__campus = {
+  scene, camera, controls, flyTo, selectBuilding, CAMPUS, BUILDINGS, SITE,
+  routeGroup, LOTS, DRIVES, WALK, STOPS, setRoute, flyToStop,
+};
