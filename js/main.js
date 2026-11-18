@@ -1269,20 +1269,9 @@ GATES.forEach(g => {
       leaf.position.x = sgn * (GAP + 4.6);
     }
 
-    // 门内草坪 + 景石
-    // 局部 +Z 是朝平安路（西）的方向，原来草坪放在 +Z 侧，正好盖住平安路。
-    // 现在翻到 -Z 侧（校内），并把草坪拆成左右两块，让出中间的车行道。
-    for (const sgn of [-1, 1]) {
-      const lw = SPAN * 0.40;
-      const lawn = new THREE.Mesh(
-        new THREE.BoxGeometry(lw, 0.34, 11),
-        new THREE.MeshStandardMaterial({ color: 0x7d9a5e, roughness: 1 })
-      );
-      lawn.position.set(sgn * (SPAN * 0.30), 0.17, -10.5);
-      lawn.receiveShadow = true;
-      grp.add(lawn);
-    }
-
+    // 门内原来铺了两块 19×11 的草坪。加了访客停车场和步道之后，
+    // 这两块草坪正好压在车位西缘和步道上（俯视看就是草地盖住了路），
+    // 索性整段删掉 —— 校门前是硬质铺装，本来也更接近照片里的样子。
     const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(2.5, 0), new THREE.MeshStandardMaterial({ color: 0x9c9689, roughness: 1 }));
     rock.position.set(SPAN * 0.30, 2.0, -11.2);
     rock.scale.set(1.9, 0.82, 0.9);
@@ -1971,7 +1960,9 @@ BUILDINGS.forEach(buildBuilding);
    线的绕障坐标是在 tools/plan_route.py 里用 2.6m 净距的栅格 A* 算出来的，
    不是目测画上去的（见 js/route.js 顶部注释）。
 */
-const ROUTE_Y_DRIVE = 0.207;
+// 车行线原来压在 0.207 —— 只比沥青高 7 毫米，还低于车道线（0.212），
+// 俯视时和路面打架，蓝虚线碎成一段一段的。抬到 0.218（在标线之上）并改成不透明。
+const ROUTE_Y_DRIVE = 0.218;
 const ROUTE_Y_WALK = 0.235;
 // 路线单独放一个组：侧栏里"游览路线"开关一次就是整组显隐，
 // 不用挨个记 mesh 引用，也不会误伤到路面和铺装。
@@ -2025,40 +2016,51 @@ function ribbonLine(pts, w, y, color, opacity = 1, order = 3) {
   return m;
 }
 
-/* 虚线：沿折线按 dash/gap 切段，逐段画小矩形 */
-function dashedLine(pts, w, y, color, dash = 7, gap = 5, opacity = 1) {
-  const pos = [], idx = [];
-  let vi = 0;
-  const half = w / 2;
-  pts.forEach((p, i) => {
-    if (i === pts.length - 1) return;
-    const q = pts[i + 1];
-    const dx = q[0] - p[0], dz = q[1] - p[1];
+/* 虚线：先按等距重采样整条折线，再按 dash/gap 切段。
+   原来的写法逐段各自从 s=0 开始切，拐角处两段的切口对不上，
+   直角拐弯会甩出一片斜三角。重采样之后每一段虚线都是连续折线，
+   直接交给 ribbonLine 画，拐角自带圆角。 */
+function dashedLine(pts, w, y, color, dash = 7, gap = 5, opacity = 1, order = 5) {
+  // 1) 等距重采样（步长 1m，短段也至少取两点）
+  const dense = [];
+  let acc = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const dx = b[0] - a[0], dz = b[1] - a[1];
     const L = Math.hypot(dx, dz);
-    if (L < 0.01) return;
-    const ux = dx / L, uz = dz / L;
-    const nx = -uz * half, nz = ux * half;
-    let s = 0;
-    while (s < L) {
-      const e = Math.min(L, s + dash);
-      const ax = p[0] + ux * s, az = p[1] + uz * s;
-      const bx = p[0] + ux * e, bz = p[1] + uz * e;
-      pos.push(ax + nx, y, az + nz, ax - nx, y, az - nz,
-               bx - nx, y, bz - nz, bx + nx, y, bz + nz);
-      idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3);
-      vi += 4;
-      s += dash + gap;
+    if (L < 0.01) continue;
+    const n = Math.max(1, Math.ceil(L));
+    for (let k = 0; k < n; k++) {
+      const t = k / n;
+      dense.push([a[0] + dx * t, a[1] + dz * t]);
     }
-  });
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
-  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({
-    color, transparent: opacity < 1, opacity, depthWrite: false, side: THREE.DoubleSide,
-  }));
-  m.renderOrder = 3;
-  routeGroup.add(m);
-  return m;
+    acc += L;
+  }
+  dense.push(pts[pts.length - 1]);
+
+  // 2) 沿累积长度切 dash / gap
+  const cum = [0];
+  for (let i = 1; i < dense.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(dense[i][0] - dense[i - 1][0], dense[i][1] - dense[i - 1][1]));
+  }
+  const total = cum[cum.length - 1];
+  const at = (s) => {
+    let i = 1;
+    while (i < cum.length - 1 && cum[i] < s) i++;
+    const t = (s - cum[i - 1]) / Math.max(1e-6, cum[i] - cum[i - 1]);
+    return [dense[i - 1][0] + (dense[i][0] - dense[i - 1][0]) * t,
+            dense[i - 1][1] + (dense[i][1] - dense[i - 1][1]) * t];
+  };
+  for (let s0 = 0; s0 < total; s0 += dash + gap) {
+    const s1 = Math.min(total, s0 + dash);
+    if (s1 - s0 < 0.8) continue;
+    const seg = [at(s0)];
+    for (let i = 0; i < cum.length; i++) {
+      if (cum[i] > s0 && cum[i] < s1) seg.push(dense[i]);
+    }
+    seg.push(at(s1));
+    ribbonLine(seg, w, y, color, opacity, order);
+  }
 }
 
 /* 停车场：铺装 + 车位线 + 几辆占位车 */
@@ -2157,7 +2159,7 @@ LOTS.forEach(lot => {
 LOTS.forEach(buildLot);
 
 /* 车行线（虚线，蓝色）+ 步行线（实线，暖橙 + 白描边） */
-DRIVES.forEach(dr => dashedLine(dr.pts, 3.4, ROUTE_Y_DRIVE, dr.color, 7, 5, 0.9));
+DRIVES.forEach(dr => dashedLine(dr.pts, 3.6, ROUTE_Y_DRIVE, dr.color, 8, 6, 1));
 // 白描边在下、橙色主线在上。原来白带比橙带高 4mm 又更宽，正俯视时白带整个把橙色盖住，
 // 远看就是一条白线 —— 描边必须是底不是面。
 ribbonLine(WALK.pts, 4.0, ROUTE_Y_WALK, 0xffffff, 0.92, 3);
