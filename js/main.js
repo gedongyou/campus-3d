@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from '../vendor/OrbitControls.js';
-import { CAMPUS } from './config.js';
+import { CAMPUS, HEARTS } from './config.js';
 import {
   SITE, TRACK, ROADS, GATES, COURTS, ISLAND, LAKE, BUILDINGS,
 } from './plan.js';
@@ -2467,6 +2467,8 @@ const TAGS = ['中心区', '教学区', '实训区', '生活区'];
 
 const areas = [{ id: 'all', name: '全部建筑', tag: null }].concat(TAGS.map(t => ({ id: t, name: t, tag: t })));
 let areaFilter = 'all';
+// “五心”分组筛选：与按方位的分区筛选各管各的，两个都开着时取交集
+let heartFilter = null;
 
 function renderAreas() {
   areaList.innerHTML = '';
@@ -2474,6 +2476,7 @@ function renderAreas() {
     const n = a.tag ? BUILDINGS.filter(b => b.tag === a.tag).length : BUILDINGS.length;
     const el = document.createElement('div');
     el.className = 'area' + (areaFilter === a.id ? ' active' : '');
+    el.dataset.area = a.id;
     el.innerHTML = `<span class="dot" style="background:${a.tag ? TAG_COLOR[a.tag] : '#7b8794'}"></span>
       <span>${a.name}</span><span class="cnt">${n}</span>`;
     el.onclick = () => {
@@ -2491,10 +2494,57 @@ function renderAreas() {
 }
 
 function highlightArea() {
+  const hset = heartFilter
+    ? new Set((HEARTS.find(h => h.id === heartFilter) || { buildings: [] }).buildings)
+    : null;
+  let kept = 0;
   buildingNodes.forEach(({ building, mat }) => {
-    const dim = areaFilter !== 'all' && building.tag !== areaFilter;
+    let dim = areaFilter !== 'all' && building.tag !== areaFilter;
+    if (!dim && hset && !hset.has(building.id)) dim = true;
+    if (!dim) kept += 1;
     mat.color.setScalar(dim ? 0.66 : 1);
     if (!duskMode) mat.emissiveIntensity = 0;
+  });
+  // 分区与“五心”取交集时可能一个都没有（比如“教学区 + 匠心”），
+  // 这时画面会整片发灰，不给句话会以为卡住了。
+  if (heartFilter && areaFilter !== 'all' && kept === 0) {
+    heartDesc.textContent = '「' + areaFilter + '」与「' +
+      (HEARTS.find(h => h.id === heartFilter) || {}).name + '」没有交叉的楼，换一组试试。';
+  }
+}
+
+/* ---------- “五心”分组 ---------- */
+const heartList = document.getElementById('heart-list');
+const heartDesc = document.getElementById('heart-desc');
+
+function renderHearts() {
+  heartList.innerHTML = '';
+  HEARTS.forEach(h => {
+    const b = document.createElement('button');
+    b.className = 'hbtn' + (heartFilter === h.id ? ' on' : '');
+    b.dataset.heart = h.id;
+    b.title = h.desc;
+    b.innerHTML = `<i style="background:${h.color}"></i><b>${h.name}</b><em>${h.word}</em>`;
+    b.onclick = () => {
+      heartFilter = heartFilter === h.id ? null : h.id;
+      if (sidebarEl) sidebarEl.classList.toggle('heart-on', !!heartFilter);
+      renderHearts();
+      highlightArea();
+      heartDesc.textContent = heartFilter ? h.desc : '';
+      if (!heartFilter) return;
+      const list = BUILDINGS.filter(x => h.buildings.includes(x.id));
+      if (!list.length) return;
+      // 取这组楼的外包框定机位：用重心会在“匠心”这种西区到体育馆的长条组上把楼挤出画面，
+      // 用外接框的对角线长度来定距离，框得住又不至于太远。
+      const xs = list.map(x => x.x), zs = list.map(x => x.z);
+      const x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+      const z0 = Math.min.apply(null, zs), z1 = Math.max.apply(null, zs);
+      const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+      const diag = Math.hypot(x1 - x0, z1 - z0);
+      const dist = Math.min(620, Math.max(240, diag * 1.05));
+      flyTo([cx + dist * 0.34, dist * 0.80, cz + dist * 0.98], [cx, 0, cz], 1250);
+    };
+    heartList.appendChild(b);
   });
 }
 
@@ -2589,6 +2639,13 @@ function setRoute(on) {
 
 routeBtn.onclick = () => setRoute(!routeOn);
 document.getElementById('btn-route-close').onclick = () => setRoute(false);
+document.getElementById('btn-heart-clear').onclick = () => {
+  heartFilter = null;
+  if (sidebarEl) sidebarEl.classList.remove('heart-on');
+  renderHearts();
+  highlightArea();
+  document.getElementById('heart-desc').textContent = '';
+};
 
 function renderViewpoints() {
   vpBar.innerHTML = '';
@@ -2753,7 +2810,8 @@ lightBtn.onclick = () => applyDusk(!duskMode);
 document.getElementById('btn-reset').onclick = () => {
   stopTour();
   deselect();
-  areaFilter = 'all'; renderAreas(); highlightArea();
+  areaFilter = 'all'; heartFilter = null; renderAreas(); renderHearts();
+  document.getElementById('heart-desc').textContent = ''; highlightArea();
   flyTo(CAMPUS.viewpoints[0].pos, CAMPUS.viewpoints[0].target, 1200);
 };
 
@@ -2835,6 +2893,7 @@ makeLabels();
 makeRouteLabels();
 makeRouteLabels && renderRoute();
 renderAreas();
+renderHearts();
 renderViewpoints();
 animate();
 

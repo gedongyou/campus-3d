@@ -80,8 +80,8 @@ body{
   border:none;background:#eef2f6;color:var(--ink-2);width:22px;height:22px;
   border-radius:6px;cursor:pointer;font-size:14px;line-height:1;display:grid;place-items:center;
 }
-.sidebar{max-height:calc(100% - 220px);display:flex;flex-direction:column}
-.panel-body{max-height:min(28vh,252px);overflow-y:auto;padding:6px;flex:0 1 auto}
+.sidebar{max-height:calc(100% - 186px);display:flex;flex-direction:column}
+.panel-body{max-height:min(22vh,190px);min-height:78px;overflow-y:auto;padding:6px;flex:0 1 auto}
 .panel-body::-webkit-scrollbar{width:4px}
 .panel-body::-webkit-scrollbar-thumb{background:#c8d2db;border-radius:2px}
 
@@ -400,7 +400,10 @@ kbd{
   padding:12px 14px 10px;font-size:12px;font-weight:600;color:var(--brand);
   letter-spacing:1px;border-bottom:1px solid var(--line);
 }
-.rp-body{padding:5px;max-height:min(42vh,330px);overflow-y:auto;flex:0 0 auto}
+/* 路线列表占剩余高度：侧栏里现在有分区、五心、路线三块，
+   固定高度加起来在 1280×720 的屏上会溢出，让路线这块去吃掉余量 */
+.rp-body{padding:5px;max-height:min(40vh,320px);min-height:112px;
+  overflow-y:auto;flex:1 1 auto}
 /* 路线列表打开时把上面的分区列表压矮一点，七个站点才排得下。
    原来两块共用一个高度预算，第 7 站被压在面板边缘下面。 */
 .sidebar:not(.hide-route) .panel-body{max-height:min(16vh,140px)}
@@ -457,3 +460,45 @@ kbd{
   .rstop .tg{display:none}
   .rp-foot{display:none}
 }
+
+/* 屏幕高度有限时（1280×720、1366×768 这类笔记本屏）按优先级依次让位：
+   先收图例，再收路线脚注，最后把五心按钮压薄，把高度留给七站列表 */
+@media (max-height:820px){
+  .legend{display:none}
+  .rp-foot{display:none}
+  .heart-head{padding:7px 14px 6px}
+  .heart-body{gap:4px;padding:6px 10px 4px}
+  .hbtn{padding:3px 7px 3px 5px;font-size:11px}
+  .hbtn em{font-size:9px}
+  .heart-desc{padding:0 11px 7px;font-size:10px;line-height:1.5}
+  .rstop{padding:4px 8px}
+}
+
+/* ---------- “五心”分组 ---------- */
+/* 五个按钮一行排开，颜色与地图里的高亮一致。
+   点一下只留下这一维相关的楼，再点一次取消。 */
+.heart-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 14px 7px;font-size:12px;font-weight:600;color:var(--brand);
+  letter-spacing:1px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+.sidebar.collapsed .heart-head,
+.sidebar.collapsed .heart-body,
+.sidebar.collapsed .heart-desc{display:none}
+.heart-body{display:flex;flex-wrap:wrap;gap:5px;padding:7px 11px 5px;flex:0 0 auto}
+.hbtn{
+  display:flex;align-items:center;gap:4px;padding:4px 8px 4px 6px;
+  border-radius:7px;border:1px solid var(--line);background:#fff;
+  font-size:12px;color:var(--ink);cursor:pointer;transition:.15s;
+}
+.hbtn:hover{background:#f3f7fa;border-color:#cfdae4}
+.hbtn i{width:7px;height:7px;border-radius:50%;display:block}
+.hbtn b{font-weight:600}
+.hbtn em{font-style:normal;font-size:10px;color:#9aa7b4;margin-left:1px}
+.hbtn.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.hbtn.on i{background:#fff}
+.hbtn.on em{color:rgba(255,255,255,.72)}
+.heart-desc{
+  padding:0 13px 9px;font-size:10.5px;line-height:1.58;color:var(--ink-2);flex:0 0 auto;
+}
+.heart-desc:empty{display:none}
