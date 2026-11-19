@@ -5,6 +5,7 @@ import {
   SITE, TRACK, ROADS, GATES, COURTS, ISLAND, LAKE, BUILDINGS,
 } from './plan.js';
 import { LOTS, DRIVES, WALK, STOPS, SPURS } from './route.js';
+import { initHeartMap } from './heartmap.js';
 
 /* =========================================================
    0. 基础环境
@@ -2517,6 +2518,8 @@ function highlightArea() {
 const heartList = document.getElementById('heart-list');
 const heartDesc = document.getElementById('heart-desc');
 
+let heartMap = null;
+
 function renderHearts() {
   heartList.innerHTML = '';
   HEARTS.forEach(h => {
@@ -2530,6 +2533,15 @@ function renderHearts() {
       if (sidebarEl) sidebarEl.classList.toggle('heart-on', !!heartFilter);
       renderHearts();
       highlightArea();
+      if (heartMap) heartMap.highlight(heartFilter ? h : null);
+      heartCard.hidden = !heartFilter;
+      // 手机上侧栏占着左半屏、缩略图在下方，两块会叠住。
+      // 选了哪一心之后把侧栏收成圆形按钮，让缩略图整块露出来；点按钮本身还能再展开。
+      if (heartFilter && innerWidth < 820 && sidebarEl) {
+        sidebarEl.classList.add('collapsed');
+        const btn = document.getElementById('btn-sidebar');
+        if (btn) btn.textContent = '☰';
+      }
       heartDesc.textContent = heartFilter ? h.desc : '';
       if (!heartFilter) return;
       const list = BUILDINGS.filter(x => h.buildings.includes(x.id));
@@ -2547,6 +2559,16 @@ function renderHearts() {
     heartList.appendChild(b);
   });
 }
+
+/* 五心缩略图：点小图上的楼，等同于点大场景里的楼。
+   放在右下角浮层里，侧栏 212 宽塞不下能看清的图；选中任一心才显示。 */
+const heartCard = document.getElementById('heart-map');
+heartMap = initHeartMap(
+  heartCard, BUILDINGS, SITE,
+  { lake: LAKE, track: TRACK, roads: ROADS },
+  (b) => selectBuilding(b)
+);
+document.getElementById('hmap-close').onclick = () => { heartCard.hidden = true; };
 
 /* ---------- 游览路线：站点标签 ---------- */
 const stopEls = [];
@@ -2644,6 +2666,8 @@ document.getElementById('btn-heart-clear').onclick = () => {
   if (sidebarEl) sidebarEl.classList.remove('heart-on');
   renderHearts();
   highlightArea();
+  if (heartMap) heartMap.highlight(null);
+  heartCard.hidden = true;
   document.getElementById('heart-desc').textContent = '';
 };
 
@@ -2811,6 +2835,9 @@ document.getElementById('btn-reset').onclick = () => {
   stopTour();
   deselect();
   areaFilter = 'all'; heartFilter = null; renderAreas(); renderHearts();
+  if (heartMap) heartMap.highlight(null);
+  heartCard.hidden = true;
+  if (sidebarEl) sidebarEl.classList.remove('heart-on');
   document.getElementById('heart-desc').textContent = ''; highlightArea();
   flyTo(CAMPUS.viewpoints[0].pos, CAMPUS.viewpoints[0].target, 1200);
 };
