@@ -1646,6 +1646,7 @@ function frontEdge(b) {
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i], c2 = poly[(i + 1) % poly.length];
     const len = Math.hypot(c2[0] - a[0], c2[1] - a[1]);
+    // 与 tools/gen_spurs.py 的 MIN_FACE 保持一致，否则雨棚和支路会挑到不同的边
     if (len < 6) continue;
     const mx = (a[0] + c2[0]) / 2, mz = (a[1] + c2[1]) / 2;
     let dmin = Infinity;
