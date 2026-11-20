@@ -172,6 +172,9 @@ body{
 }
 .vp:hover{background:#eef3f7;color:var(--brand)}
 .vp.active{background:var(--brand);color:#fff}
+.vp-sep{width:1px;align-self:stretch;margin:2px 3px;background:var(--line)}
+.vp-heart{color:var(--brand);font-weight:600}
+.vp-heart.active{background:var(--brand);color:#fff}
 
 /* ---------- 提示 ---------- */
 .hint{
@@ -403,8 +406,36 @@ kbd{
 }
 /* 路线列表占剩余高度：侧栏里现在有分区、五心、路线三块，
    固定高度加起来在 1280×720 的屏上会溢出，让路线这块去吃掉余量 */
+.rp-tabs{display:flex;gap:3px;padding:7px 9px 4px;flex:0 0 auto}
+.rp-tabs .rpt{
+  flex:1;border:1px solid var(--line);background:#fff;border-radius:7px;
+  font-family:inherit;font-size:11.5px;color:var(--ink-2);padding:5px 0;
+  cursor:pointer;transition:.15s;
+}
+.rp-tabs .rpt:hover{background:#eef3f7}
+.rp-tabs .rpt.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
 .rp-body{padding:5px;max-height:min(40vh,320px);min-height:112px;
   overflow-y:auto;flex:1 1 auto}
+
+/* 汽车参访：每条流线一段，门 / 路 / 泊位 / 组织 四行 */
+.rdrive{
+  padding:8px 9px;border-radius:8px;cursor:pointer;transition:.15s;
+  border:1px solid transparent;
+}
+.rdrive:hover{background:#eef3f7}
+.rdrive.active{background:#e8f0f6;border-color:#cfe0ec}
+.rdrive + .rdrive{margin-top:4px}
+.rd-top{display:flex;align-items:center;gap:7px;margin-bottom:5px}
+.rdrive .rd-id{
+  flex:0 0 17px;height:17px;border-radius:4px;background:#2f6d92;color:#fff;
+  font-size:10px;font-weight:600;display:grid;place-items:center;
+}
+.rdrive .rd-name{font-size:12px;font-weight:600;color:var(--ink);line-height:1.3}
+.rd-dl{display:grid;grid-template-columns:auto 1fr;gap:2px 7px;margin:0}
+.rd-dl dt{font-size:9.5px;color:#9aa7b4;white-space:nowrap}
+.rd-dl dd{margin:0;font-size:10.5px;color:var(--ink-2);line-height:1.52}
+.rd-pts{margin:6px 0 0;padding-left:14px}
+.rd-pts li{font-size:10px;color:var(--ink-2);line-height:1.6}
 /* 路线列表打开时把上面的分区列表压矮一点，七个站点才排得下。
    原来两块共用一个高度预算，第 7 站被压在面板边缘下面。 */
 .sidebar:not(.hide-route) .panel-body{max-height:min(16vh,140px)}
@@ -475,6 +506,29 @@ kbd{
   .rstop{padding:4px 8px}
 }
 
+/* ---------- “五心”面板：左侧独立一张卡 ---------- */
+/* 原来这五条挤在侧栏里，和分区、路线三块抢高度，
+   1280×720 上第七站被压到面板边缘下面。现在从底栏「五心育人」点开，
+   放在分区卡右面，两块并排，谁也不挤谁。 */
+.heart-panel{
+  position:absolute;left:252px;top:88px;z-index:16;width:264px;
+  max-height:calc(100% - 220px);display:flex;flex-direction:column;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.7);border-radius:14px;
+  box-shadow:var(--shadow);overflow:hidden;
+}
+.heart-panel[hidden]{display:none}
+.hp-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px 10px;font-size:12px;font-weight:600;color:var(--brand);
+  letter-spacing:1px;border-bottom:1px solid var(--line);flex:0 0 auto;
+}
+.hp-body{padding:9px 11px 11px;overflow-y:auto;flex:1 1 auto}
+.hp-body::-webkit-scrollbar{width:4px}
+.hp-body::-webkit-scrollbar-thumb{background:#c8d2db;border-radius:2px}
+.hp-foot{padding-top:8px;border-top:1px solid var(--line);margin-top:8px}
+.hp-foot .btn{width:100%;padding:6px;font-size:11.5px}
+
 /* ---------- “五心”分组 ---------- */
 /* 五个按钮一行排开，颜色与地图里的高亮一致。
    点一下只留下这一维相关的楼，再点一次取消。 */
@@ -486,7 +540,7 @@ kbd{
 .sidebar.collapsed .heart-head,
 .sidebar.collapsed .heart-body,
 .sidebar.collapsed .heart-desc{display:none}
-.heart-body{display:flex;flex-wrap:wrap;gap:5px;padding:7px 11px 5px;flex:0 0 auto}
+.heart-body{display:flex;flex-wrap:wrap;gap:5px;padding:0 0 6px;flex:0 0 auto}
 .hbtn{
   display:flex;align-items:center;gap:4px;padding:4px 8px 4px 6px;
   border-radius:7px;border:1px solid var(--line);background:#fff;
@@ -539,7 +593,7 @@ kbd{
 .hmap-b.dim{opacity:.30}
 .hmap-b.on{stroke:none}
 .heart-desc{
-  padding:0 13px 9px;font-size:10.5px;line-height:1.58;color:var(--ink-2);flex:0 0 auto;
+  padding:0 0 2px;font-size:10.5px;line-height:1.62;color:var(--ink-2);flex:0 0 auto;
 }
 .heart-desc:empty{display:none}
 
@@ -553,4 +607,11 @@ kbd{
   .hmap-cap{font-size:9px}
   /* 缩略图打开时把免责声明收掉，否则两块叠在底部 */
   .hmap-card:not([hidden]) ~ .disclaimer{display:none}
+  /* 五心面板在手机上改成贴顶通栏，和侧栏二选一显示 */
+  .heart-panel{
+    left:10px;right:10px;top:64px;width:auto;
+    max-height:min(46vh,360px);
+  }
+  .heart-panel:not([hidden]) ~ .sidebar{display:none}
+  .heart-panel:not([hidden]) ~ .hmap-card{top:auto}
 }

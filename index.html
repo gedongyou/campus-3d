@@ -27,7 +27,7 @@
       </div>
     </div>
     <div class="top-actions">
-      <button id="btn-route" class="btn on" title="显示 / 隐藏游览停车路线（L 键）">游览路线</button>
+      <button id="btn-route" class="btn on" title="显示 / 隐藏参访路线（L 键）">参访路线</button>
       <button id="btn-help" class="btn" title="操作说明（H 键）">操作说明</button>
       <button id="btn-tour" class="btn" title="按顺序自动巡游各区域（T 键）">自动巡游</button>
       <button id="btn-light" class="btn" title="切换日景 / 黄昏（D 键）">黄昏</button>
@@ -43,11 +43,6 @@
     </div>
     <div class="panel-body" id="area-list"></div>
 
-    <!-- “五心”分组：把红心/仁心/恒心/匠心/创心落到具体的楼上 -->
-    <div class="heart-head"><span>“五心”育人</span><button id="btn-heart-clear" title="取消五心筛选">—</button></div>
-    <div class="heart-body" id="heart-list"></div>
-    <div class="heart-desc" id="heart-desc"></div>
-
     <div class="legend">
       <span><i style="background:#b98b5e"></i>教学区</span>
       <span><i style="background:#5f8ea8"></i>实训区</span>
@@ -55,15 +50,37 @@
       <span><i style="background:#c4a35a"></i>中心区</span>
     </div>
 
-    <!-- 游览路线：和分区列表同一块面板，不另起浮层 -->
+    <!-- 参访路线：学生游览线 / 汽车参访线，两套分开看 -->
     <div class="rp-head">
-      <span>游览 · 停车路线</span>
+      <span>参访路线</span>
       <button id="btn-route-close" class="collapse" title="隐藏路线">—</button>
     </div>
+    <div class="rp-tabs" role="tablist">
+      <button class="rpt on" data-mode="walk" role="tab">学生游览</button>
+      <button class="rpt" data-mode="drive" role="tab">汽车参访</button>
+    </div>
     <div class="rp-body" id="route-list"></div>
-    <div class="rp-foot">
+    <div class="rp-foot" id="rp-foot-walk">
       <span><i class="ln walk"></i>步行游览线　约 1.2 km</span>
       <span><i class="ln drive"></i>车行入场线</span>
+    </div>
+    <div class="rp-foot" id="rp-foot-drive" hidden>
+      <span><i class="ln drive"></i>两处停车场 · 三条进校流线</span>
+    </div>
+  </aside>
+
+  <!-- “五心”面板：从底部功能区点开，在左侧展开 -->
+  <aside class="heart-panel" id="heart-panel" hidden>
+    <div class="hp-head">
+      <span>“五心”育人</span>
+      <button id="btn-heart-close" class="collapse" title="收起">—</button>
+    </div>
+    <div class="hp-body">
+      <div class="heart-body" id="heart-list"></div>
+      <div class="heart-desc" id="heart-desc"></div>
+      <div class="hp-foot">
+        <button id="btn-heart-clear" class="btn">取消筛选</button>
+      </div>
     </div>
   </aside>
 
@@ -146,14 +163,14 @@
         </section>
 
         <section id="help-route">
-          <h3>游览与停车路线</h3>
+          <h3>参访路线：学生一套，汽车一套</h3>
+          <p class="help-note" style="margin-top:0">左侧「参访路线」下面并排两个页签，切一下换一套说法。两套线在场景里一直都有，页签只决定列表读哪一份。</p>
           <dl>
-            <dt><kbd>橙色实线</kbd></dt><dd>步行游览线，闭环，从访客停车场出发绕一圈再回来，全程约 1.2 公里，慢走二十五分钟。</dd>
-            <dt><kbd>蓝色虚线</kbd></dt><dd>车行入场线，从两个校门分别引到停车场。走的是真马路，所以用虚线，和路面画在一起。</dd>
-            <dt><kbd>编号圆点</kbd></dt><dd>七个站点。点侧栏里的站名，或者直接点场景里的圆点，镜头就飞过去。</dd>
-            <dt><kbd>灰色地块</kbd></dt><dd>两处停车场：学校主入口内侧的访客停车场、实训区的大巴停车场。</dd>
+            <dt><kbd>学生游览</kbd></dt><dd>橙色实线，闭环，从访客停车场出发绕一圈再回来，全程约 1.2 公里，慢走二十五分钟。七个站点，编号圆点就对应这个顺序。</dd>
+            <dt><kbd>汽车参访</kbd></dt><dd>两条进校流线，A 从学校主入口进、B 从实训区主入口进。每条都写明经行道路、落客与泊位、交通组织，下面跟三条具体做法。</dd>
+            <dt><kbd>蓝色虚线</kbd></dt><dd>车行流线，走的是真马路，所以画成虚线压在路面上，和沥青分开。</dd>
+            <dt><kbd>灰色地块</kbd></dt><dd>两处停车场：学校主入口内侧的访客停车场（小车 58 位）、实训区的大巴停车场（大巴 12 位 / 小车 20 位）。</dd>
             <dt><kbd>L</kbd></dt><dd>整组路线显示或隐藏。人多的场合关掉，画面干净些。</dd>
-            
           </dl>
         </section>
 
@@ -161,11 +178,11 @@
           <h3>界面上都是什么</h3>
           <dl>
             <dt><kbd>左侧分区栏</kbd></dt><dd>十七栋楼按中心区、教学区、实训区、生活区分组。点某一类，场景里只亮这一类。</dd>
-            <dt><kbd>底部七个视角</kbd></dt><dd>校园总览、学校正门、实训区、教学区、匠心湖、运动场、生活区。点一下镜头就飞过去。</dd>
+            <dt><kbd>底部视角条</kbd></dt><dd>校园总览、学校正门、实训区、教学区、匠心湖、运动场、生活区、路线总览，点一下镜头就飞过去。最右边是「五心育人」，点开在左侧展开那五条线。</dd>
             <dt><kbd>自动巡游</kbd></dt><dd>从你现在的位置开始，六秒一站往前走，适合放在开放日的大屏上循环。</dd>
             <dt><kbd>黄昏</kbd></dt><dd>整座校园换一遍光，路灯和窗子亮起来。</dd>
             <dt><kbd>重置视角</kbd></dt><dd>不管你转到哪儿，一键回总览。</dd>
-            <dt><kbd>“五心”分组</kbd></dt><dd>左侧“五心”一排按钮，点红心只留下校门与实训区的楼，点仁心只留下食堂与宿舍，其余同理。一栋楼可以同时属于两维：实训基地既是红心的产业对接，也是匠心的训练场，点哪一维都能看到它，但侧栏给的理由不一样。选中任一心后，右上角会展开一张总平面缩略图，把这一维铺开的楼在图上标成同色，看分布比看大场景直观；点缩略图上的楼也能打开它的详情。再点一次取消。</dd>
+            <dt><kbd>“五心”育人</kbd></dt><dd>点底部最右边那个按钮，左侧展开一张卡，红心、仁心、恒心、匠心、创心五个按钮。点红心只留下校门与实训区的楼，点仁心只留下食堂与宿舍，其余同理。一栋楼可以同时属于两维：实训基地既是红心的产业对接，也是匠心的训练场，点哪一维都能看到它，但卡上给的理由不一样。选中任一心后，右上角另展开一张总平面缩略图，把这一维铺开的楼标成同色；点缩略图上的楼也能打开它的详情。再点一次或按「取消筛选」收回。</dd>
             <dt><kbd>楼下的路名</kbd></dt><dd>主路都标着名字。横向的从北往南是匠远路、匠诚路、匠学路、匠行路、匠心路、匠德路，纵向的从西往东是匠能大道、匠运大道、平安大道、领航大道、匠思路、团结大道。镜头拉远时路名会自动变淡，不会挡住场景。</dd>
           </dl>
         </section>

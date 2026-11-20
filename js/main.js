@@ -4,7 +4,7 @@ import { CAMPUS, HEARTS } from './config.js';
 import {
   SITE, TRACK, ROADS, GATES, COURTS, ISLAND, LAKE, BUILDINGS,
 } from './plan.js';
-import { LOTS, DRIVES, WALK, STOPS, SPURS } from './route.js';
+import { LOTS, DRIVES, DRIVE_INFO, WALK, STOPS, SPURS } from './route.js';
 import { initHeartMap } from './heartmap.js';
 
 /* =========================================================
@@ -1027,11 +1027,16 @@ function stadiumPts(R, halfL, cx, cz, n = 40) {
     groundGroup.add(goal);
   }
 
-  // 看台（跑道西侧）
+  // 看台（跑道西侧，贴着跑道外沿往西逐级升高）
+  // 原来每级进深 13 米、级间退 7.6 米，四级总共占 35.8 米，
+  // 最西一级落到 x≈202.9，正好压在团结大道（x=200..208）上。
+  // 改成进深 6 米、级间也退 6 米，总占 24 米：
+  // 第一级贴跑道外沿（x=235.7），最西一级边缘到 x≈211.7，让开马路边线 3.7 米。
   const standMat = new THREE.MeshStandardMaterial({ color: 0xc8c3b4, roughness: 0.95 });
+  const STAND_D = 6.0, STAND_STEP = 6.0;
   for (let i = 0; i < 4; i++) {
-    const st = new THREE.Mesh(new THREE.BoxGeometry(13, 1.5 + i * 1.5, 58), standMat);
-    st.position.set(x - R_OUT - 10 - i * 7.6, (1.5 + i * 1.5) / 2, z);
+    const st = new THREE.Mesh(new THREE.BoxGeometry(STAND_D, 1.5 + i * 1.5, 58), standMat);
+    st.position.set(x - R_OUT - STAND_D / 2 - i * STAND_STEP, (1.5 + i * 1.5) / 2, z);
     st.castShadow = true;
     st.receiveShadow = true;
     groundGroup.add(st);
@@ -2535,8 +2540,7 @@ function renderHearts() {
       highlightArea();
       if (heartMap) heartMap.highlight(heartFilter ? h : null);
       heartCard.hidden = !heartFilter;
-      // 手机上侧栏占着左半屏、缩略图在下方，两块会叠住。
-      // 选了哪一心之后把侧栏收成圆形按钮，让缩略图整块露出来；点按钮本身还能再展开。
+      // 手机上左侧面板本来就占着，缩略图放到下方；桌面端两张卡并排，不冲突。
       if (heartFilter && innerWidth < 820 && sidebarEl) {
         sidebarEl.classList.add('collapsed');
         const btn = document.getElementById('btn-sidebar');
@@ -2632,19 +2636,66 @@ function markStop(no) {
   });
 }
 
+/* 参访路线两套：学生走步行环线，车辆走进校流线。
+   切换页签只换列表内容，场景里两组线一直都在，方便对照。 */
+let routeMode = 'walk';
+
 function renderRoute() {
   const box = document.getElementById('route-list');
   box.innerHTML = '';
-  STOPS.forEach(s => {
+  const footW = document.getElementById('rp-foot-walk');
+  const footD = document.getElementById('rp-foot-drive');
+  if (footW) footW.hidden = routeMode !== 'walk';
+  if (footD) footD.hidden = routeMode !== 'drive';
+  document.querySelectorAll('.rpt').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === routeMode);
+    b.setAttribute('aria-selected', b.dataset.mode === routeMode ? 'true' : 'false');
+  });
+
+  if (routeMode === 'walk') {
+    STOPS.forEach(s => {
+      const el = document.createElement('div');
+      el.className = 'rstop';
+      el.dataset.no = s.no;
+      el.innerHTML = `<span class="no">${s.no}</span>` +
+                     `<span><span class="nm">${s.name}</span><span class="tg">${s.tag}</span></span>`;
+      el.onclick = () => flyToStop(s);
+      box.appendChild(el);
+    });
+    return;
+  }
+
+  // 汽车参访：每条进校流线一段，写清门、路、泊位与组织要点
+  DRIVES.forEach(dr => {
+    const info = DRIVE_INFO[dr.id] || {};
     const el = document.createElement('div');
-    el.className = 'rstop';
-    el.dataset.no = s.no;
-    el.innerHTML = `<span class="no">${s.no}</span>` +
-                   `<span><span class="nm">${s.name}</span><span class="tg">${s.tag}</span></span>`;
-    el.onclick = () => flyToStop(s);
+    el.className = 'rdrive';
+    el.dataset.drive = dr.id;
+    const pts = (info.points || []).map(t => `<li>${t}</li>`).join('');
+    el.innerHTML =
+      `<div class="rd-top"><span class="rd-id">${dr.id === 'd_s' ? 'A' : 'B'}</span>` +
+      `<span class="rd-name">${info.gate || dr.name}</span></div>` +
+      `<dl class="rd-dl">` +
+      `<dt>经行道路</dt><dd>${info.road || '—'}</dd>` +
+      `<dt>落客与泊位</dt><dd>${info.bay || '—'}</dd>` +
+      `<dt>交通组织</dt><dd>${info.organize || '—'}</dd>` +
+      `</dl>` +
+      (pts ? `<ul class="rd-pts">${pts}</ul>` : '');
+    el.onclick = () => {
+      // 点一段就把镜头带到这条线的中点上空，斜看整条流线
+      const p = dr.pts;
+      const mid = p[Math.floor(p.length / 2)];
+      stopTour(); deselect();
+      flyTo([mid[0] + 60, 120, mid[1] + 90], [mid[0], 0, mid[1]], 1400);
+      document.querySelectorAll('.rdrive').forEach(n => n.classList.toggle('active', n === el));
+    };
     box.appendChild(el);
   });
 }
+
+document.querySelectorAll('.rpt').forEach(b => {
+  b.onclick = () => { routeMode = b.dataset.mode; renderRoute(); };
+});
 
 /* 整组显隐 */
 const sidebarEl = document.getElementById('sidebar');
@@ -2687,7 +2738,31 @@ function renderViewpoints() {
     };
     vpBar.appendChild(b);
   });
+  // 底栏末尾挂一个「五心育人」，点开在左侧展开那五条线
+  const sep = document.createElement('span');
+  sep.className = 'vp-sep';
+  vpBar.appendChild(sep);
+  const hb = document.createElement('button');
+  hb.className = 'vp vp-heart';
+  hb.id = 'btn-heart-open';
+  hb.textContent = '五心育人';
+  hb.onclick = () => toggleHeartPanel();
+  vpBar.appendChild(hb);
 }
+
+/* “五心”面板：底栏点开、左侧展开。原来它挤在侧栏里，
+   和分区、路线三块抢高度，1280 屏上第七站被裁掉。 */
+const heartPanel = document.getElementById('heart-panel');
+let heartPanelOpen = false;
+
+function toggleHeartPanel(force) {
+  heartPanelOpen = (force === undefined) ? !heartPanelOpen : !!force;
+  heartPanel.hidden = !heartPanelOpen;
+  const hb = document.getElementById('btn-heart-open');
+  if (hb) hb.classList.toggle('active', heartPanelOpen);
+  if (sidebarEl) sidebarEl.classList.toggle('with-hearts', heartPanelOpen);
+}
+document.getElementById('btn-heart-close').onclick = () => toggleHeartPanel(false);
 
 function selectBuilding(b) {
   stopTour();
