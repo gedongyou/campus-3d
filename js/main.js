@@ -959,6 +959,15 @@ function stadiumPts(R, halfL, cx, cz, n = 40) {
   return pts;
 }
 
+/* 看台：跑道西侧的阶梯看台。建看台与树木避让共用这组数，
+   省得两处各写一遍、改了这边忘了那边。 */
+const STAND = (() => {
+  const R_OUT = TRACK.R + TRACK.lanes * TRACK.laneW;
+  const D = 6.0, STEP = 6.0, TIERS = 4, LEN = 58;
+  const east = TRACK.x - R_OUT;          // 贴着跑道外沿
+  return { D, STEP, TIERS, LEN, east, west: east - D - (TIERS - 1) * STEP, z: TRACK.z };
+})();
+
 (function track() {
   const { x, z, R, halfL, lanes, laneW } = TRACK;
   const R_OUT = R + lanes * laneW;
@@ -1030,13 +1039,12 @@ function stadiumPts(R, halfL, cx, cz, n = 40) {
   // 看台（跑道西侧，贴着跑道外沿往西逐级升高）
   // 原来每级进深 13 米、级间退 7.6 米，四级总共占 35.8 米，
   // 最西一级落到 x≈202.9，正好压在团结大道（x=200..208）上。
-  // 改成进深 6 米、级间也退 6 米，总占 24 米：
-  // 第一级贴跑道外沿（x=235.7），最西一级边缘到 x≈211.7，让开马路边线 3.7 米。
+  // 改成进深 6 米、级间也退 6 米，总占 24 米，让开马路边线。
   const standMat = new THREE.MeshStandardMaterial({ color: 0xc8c3b4, roughness: 0.95 });
-  const STAND_D = 6.0, STAND_STEP = 6.0;
-  for (let i = 0; i < 4; i++) {
-    const st = new THREE.Mesh(new THREE.BoxGeometry(STAND_D, 1.5 + i * 1.5, 58), standMat);
-    st.position.set(x - R_OUT - STAND_D / 2 - i * STAND_STEP, (1.5 + i * 1.5) / 2, z);
+  for (let i = 0; i < STAND.TIERS; i++) {
+    const hgt = 1.5 + i * 1.5;
+    const st = new THREE.Mesh(new THREE.BoxGeometry(STAND.D, hgt, STAND.LEN), standMat);
+    st.position.set(STAND.east - STAND.D / 2 - i * STAND.STEP, hgt / 2, STAND.z);
     st.castShadow = true;
     st.receiveShadow = true;
     groundGroup.add(st);
@@ -1807,6 +1815,11 @@ BUILDINGS.forEach(buildBuilding);
     const inboard = g.dir === 's' ? (z < g.z) : false;
     return d < 27 && along < (inboard ? 96 : 18);
   });
+  // 看台：阶梯是一层层实心的，树长上去就是从看台里穿出来一棵，
+  // 俯视和平视都很刺眼。整块包围盒外扩 2 米都不种。
+  const onStand = (x, z) =>
+    x > STAND.west - 2 && x < STAND.east + 2 &&
+    Math.abs(z - STAND.z) < STAND.LEN / 2 + 2;
   // 升旗台 + 台前广场，别让树种上去
   const onFlag = (x, z) =>
     Math.abs(x - FLAG.x) < FLAG.w / 2 + 12 && Math.abs(z - FLAG.z) < FLAG.d / 2 + 4;
@@ -1841,7 +1854,7 @@ BUILDINGS.forEach(buildBuilding);
   const push = (x, z, sc) => {
     if (x < SITE.x1 + 4 || x > SITE.x2 - 4 || z < SITE.z1 + 4 || z > SITE.z2 - 4) return;
     if (onRoad(x, z) || onTrack(x, z) || onLake(x, z) || inCourt(x, z) ||
-        onFlag(x, z) || onGate(x, z) || onRoute(x, z)) return;
+        onStand(x, z) || onFlag(x, z) || onGate(x, z) || onRoute(x, z)) return;
     if (blocked.some(p => inPoly(x, z, p))) return;
     spots.push([x, z, sc]);
   };
